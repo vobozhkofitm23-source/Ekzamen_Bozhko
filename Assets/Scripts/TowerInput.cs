@@ -101,11 +101,11 @@ namespace NightWatch
         static bool WasLeftClick()
         {
 #if ENABLE_INPUT_SYSTEM
-            if (UnityEngine.InputSystem.Mouse.current != null &&
-                UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
-                return true;
-#endif
+            return UnityEngine.InputSystem.Mouse.current != null &&
+                   UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame;
+#else
             return Input.GetMouseButtonDown(0);
+#endif
         }
     }
 

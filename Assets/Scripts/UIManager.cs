@@ -208,13 +208,13 @@ namespace NightWatch
                     idx);
             }
 
-            // Підказка — під панеллю башен, не по центру екрана
+            // Підказка — біля кнопки башні, з обмеженням по екрану
             _tooltipPanel = new GameObject("TowerTooltip", typeof(RectTransform));
             _tooltipPanel.transform.SetParent(parent, false);
             var tipRt = _tooltipPanel.GetComponent<RectTransform>();
-            tipRt.anchorMin = tipRt.anchorMax = new Vector2(0.5f, 1f);
+            tipRt.anchorMin = tipRt.anchorMax = new Vector2(0.5f, 0.5f);
             tipRt.pivot = new Vector2(0.5f, 1f);
-            tipRt.anchoredPosition = new Vector2(0, -180);
+            tipRt.anchoredPosition = Vector2.zero;
             tipRt.sizeDelta = new Vector2(280, 185);
             var tipBg = _tooltipPanel.AddComponent<Image>();
             tipBg.color = new Color(0.06f, 0.1f, 0.16f, 0.96f);
@@ -261,11 +261,74 @@ namespace NightWatch
             var diff = gm != null ? gm.SelectedDifficulty : Difficulty.Medium;
             _tooltipText.text = GameConfig.GetTowerTooltip(type, race, diff);
             _tooltipPanel.SetActive(true);
+            Canvas.ForceUpdateCanvases();
+            PositionTowerTooltip(towerIndex);
+        }
+
+        void PositionTowerTooltip(int towerIndex)
+        {
+            if (_tooltipPanel == null || towerIndex < 0 || towerIndex >= _towerButtons.Length)
+                return;
+            if (_towerButtons[towerIndex] == null || _canvas == null)
+                return;
 
             var tipRt = _tooltipPanel.GetComponent<RectTransform>();
-            float startX = -420f;
-            float spacing = 148f;
-            tipRt.anchoredPosition = new Vector2(startX + towerIndex * spacing, -182);
+            var btnRt = _towerButtons[towerIndex].GetComponent<RectTransform>();
+            var canvasRt = _canvas.transform as RectTransform;
+
+            float textHeight = _tooltipText != null ? _tooltipText.preferredHeight + 24f : 160f;
+            tipRt.sizeDelta = new Vector2(280f, Mathf.Clamp(textHeight, 160f, 320f));
+
+            const float gap = 10f;
+            const float margin = 14f;
+
+            var btnCorners = new Vector3[4];
+            btnRt.GetWorldCorners(btnCorners);
+            float btnCenterX = (btnCorners[0].x + btnCorners[2].x) * 0.5f;
+            float btnBottomY = btnCorners[0].y;
+            float btnTopY = btnCorners[1].y;
+
+            tipRt.pivot = new Vector2(0.5f, 1f);
+            tipRt.position = new Vector3(btnCenterX, btnBottomY - gap, btnRt.position.z);
+            ClampTooltipToCanvas(tipRt, canvasRt, margin);
+
+            tipRt.GetWorldCorners(btnCorners);
+            if (btnCorners[0].y < GetCanvasWorldRect(canvasRt, margin).yMin)
+            {
+                tipRt.pivot = new Vector2(0.5f, 0f);
+                tipRt.position = new Vector3(btnCenterX, btnTopY + gap, btnRt.position.z);
+                ClampTooltipToCanvas(tipRt, canvasRt, margin);
+            }
+        }
+
+        static Rect GetCanvasWorldRect(RectTransform canvasRt, float margin)
+        {
+            var corners = new Vector3[4];
+            canvasRt.GetWorldCorners(corners);
+            return Rect.MinMaxRect(
+                corners[0].x + margin,
+                corners[0].y + margin,
+                corners[2].x - margin,
+                corners[2].y - margin);
+        }
+
+        static void ClampTooltipToCanvas(RectTransform tipRt, RectTransform canvasRt, float margin)
+        {
+            var bounds = GetCanvasWorldRect(canvasRt, margin);
+            var corners = new Vector3[4];
+            tipRt.GetWorldCorners(corners);
+
+            float minX = corners[0].x;
+            float maxX = corners[2].x;
+            float minY = corners[0].y;
+            float maxY = corners[1].y;
+
+            var pos = tipRt.position;
+            if (minX < bounds.xMin) pos.x += bounds.xMin - minX;
+            if (maxX > bounds.xMax) pos.x -= maxX - bounds.xMax;
+            if (minY < bounds.yMin) pos.y += bounds.yMin - minY;
+            if (maxY > bounds.yMax) pos.y -= maxY - bounds.yMax;
+            tipRt.position = pos;
         }
 
         public void HideTowerTooltip()

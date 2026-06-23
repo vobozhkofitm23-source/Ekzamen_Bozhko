@@ -120,8 +120,10 @@ namespace NightWatch
                 return Mouse.current.position.ReadValue();
             if (Touchscreen.current != null)
                 return Touchscreen.current.primaryTouch.position.ReadValue();
-#endif
+            return Vector2.zero;
+#else
             return Input.mousePosition;
+#endif
         }
     }
 }
