@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Нічний Дозор — Tower Defense</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="game-container"></div>
+
+  <!-- Головне меню -->
+  <div id="menu-screen" class="screen active">
+    <div class="panel">
+      <h1>Нічний Дозор</h1>
+      <p class="subtitle">Захист цілі · Стартовий вибір · Часові обмеження</p>
+      <img src="assets/reference-style.png" alt="Стиль гри" class="ref-image">
+      <h2>Оберіть расу</h2>
+      <div class="race-buttons">
+        <button class="race-btn" data-race="0">
+          <span class="race-color elf"></span>
+          Кристалічні ельфи
+          <small>+15% дальність</small>
+        </button>
+        <button class="race-btn" data-race="1">
+          <span class="race-color dwarf"></span>
+          Вогняні гноми
+          <small>+20% урон</small>
+        </button>
+        <button class="race-btn" data-race="2">
+          <span class="race-color orc"></span>
+          Лісові орки
+          <small>+25% золото</small>
+        </button>
+      </div>
+      <p class="hint">WASD — рух · 1-3 — юніт · E — поставити · G — апгрейд · Пробіл — хвиля</p>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-block">
+        <span id="hud-race">Раса</span>
+        <span id="hud-level">Рівень 1/3</span>
+        <span id="hud-wave">Хвиля 0/3</span>
+      </div>
+      <div class="hud-block">
+        <span>⏱ <span id="hud-timer">90</span>с</span>
+        <span>💰 <span id="hud-gold">150</span></span>
+      </div>
+    </div>
+    <div class="hud-objective">
+      <label>Ціль (кристал)</label>
+      <div class="bar-bg"><div id="objective-bar" class="bar-fill"></div></div>
+      <span id="hud-objective-hp">100/100</span>
+    </div>
+    <div class="hud-bottom">
+      <div id="unit-slots" class="unit-slots"></div>
+      <div id="hud-message" class="message">Підійдіть до слота і натисніть E</div>
+    </div>
+  </div>
+
+  <!-- Екран перемоги/поразки -->
+  <div id="end-screen" class="screen hidden">
+    <div class="panel">
+      <h1 id="end-title">Перемога!</h1>
+      <p id="end-text"></p>
+      <button id="restart-btn">Грати знову</button>
+    </div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="js/game.js"></script>
+</body>
+</html>
