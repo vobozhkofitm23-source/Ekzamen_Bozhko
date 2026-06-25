@@ -7,7 +7,6 @@ namespace NightWatch
         public Vector2Int Cell { get; private set; }
         public bool Occupied { get; private set; }
 
-        Tower _tower;
         GameObject _marker;
 
         public void Setup(Vector2Int cell, Vector3 position)
@@ -30,7 +29,6 @@ namespace NightWatch
         public bool TryBuild(Tower tower)
         {
             if (Occupied || tower == null) return false;
-            _tower = tower;
             Occupied = true;
             if (_marker != null) _marker.SetActive(false);
 
@@ -44,7 +42,6 @@ namespace NightWatch
         public void Clear()
         {
             Occupied = false;
-            _tower = null;
             if (_marker != null) _marker.SetActive(true);
         }
     }

@@ -106,13 +106,6 @@ namespace NightWatch
             return false;
         }
 
-        /// <summary>Курсор над ігровим полем (нижня частина екрана), не над верхнім UI.</summary>
-        public static bool IsPointerOverGameWorld()
-        {
-            var pos = GetPointerPosition();
-            return pos.y < Screen.height * 0.72f;
-        }
-
         public static Vector2 GetPointerPosition()
         {
 #if ENABLE_INPUT_SYSTEM

@@ -18,82 +18,35 @@ namespace NightWatch
             TowerAttackMode mode, float aoeRadius = 0f, float slowMult = 1f, float slowDuration = 0f)
         {
             if (target == null || !target.IsAlive) return;
-
-            var go = GameObject.CreatePrimitive(GetShape(type));
-            go.name = "Projectile";
-            go.transform.position = origin;
-            go.transform.localScale = Vector3.one * GetSize(type);
-            Object.Destroy(go.GetComponent<Collider>());
-
-            var r = go.GetComponent<Renderer>();
-            r.material = CreateProjectileMaterial(GameConfig.GetProjectileColor(type));
-
-            var proj = go.AddComponent<Projectile>();
+            var proj = Create(origin, type, damage, mode, aoeRadius);
             proj._target = target;
-            proj._damage = damage;
-            proj._speed = GetSpeed(type);
-            proj._mode = mode;
-            proj._aoeRadius = aoeRadius;
             proj._slowMult = slowMult;
             proj._slowDuration = slowDuration;
         }
 
         public static void FireArc(Vector3 origin, Vector3 targetPos, float damage, TowerType type, float aoeRadius)
         {
-            var go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            go.name = "MortarShell";
-            go.transform.position = origin;
-            go.transform.localScale = Vector3.one * 0.35f;
-            Object.Destroy(go.GetComponent<Collider>());
-
-            var r = go.GetComponent<Renderer>();
-            r.material = CreateProjectileMaterial(new Color(1f, 0.55f, 0.15f));
-
-            var proj = go.AddComponent<Projectile>();
+            var proj = Create(origin, type, damage, TowerAttackMode.Aoe, aoeRadius);
             proj._targetPos = targetPos;
             proj._useTargetPos = true;
-            proj._damage = damage;
             proj._speed = 9f;
-            proj._mode = TowerAttackMode.Aoe;
-            proj._aoeRadius = aoeRadius;
         }
 
-        static PrimitiveType GetShape(TowerType type) => type switch
+        static Projectile Create(Vector3 origin, TowerType type, float damage, TowerAttackMode mode, float aoeRadius)
         {
-            TowerType.Archer => PrimitiveType.Cylinder,
-            TowerType.Cannon => PrimitiveType.Sphere,
-            TowerType.Freeze => PrimitiveType.Cube,
-            TowerType.Lightning => PrimitiveType.Cylinder,
-            _ => PrimitiveType.Sphere
-        };
+            var go = GameObject.CreatePrimitive(type == TowerType.Archer ? PrimitiveType.Cylinder : PrimitiveType.Sphere);
+            go.name = "Projectile";
+            go.transform.position = origin;
+            go.transform.localScale = Vector3.one * (type == TowerType.Archer ? 0.12f : 0.22f);
+            Object.Destroy(go.GetComponent<Collider>());
+            ModelSpawner.SetUnlitColor(go.GetComponent<Renderer>(), GameConfig.GetProjectileColor(type));
 
-        static float GetSize(TowerType type) => type switch
-        {
-            TowerType.Archer => 0.12f,
-            TowerType.Cannon => 0.22f,
-            TowerType.Mortar => 0.35f,
-            TowerType.Freeze => 0.18f,
-            TowerType.Lightning => 0.1f,
-            _ => 0.2f
-        };
-
-        static float GetSpeed(TowerType type) => type switch
-        {
-            TowerType.Archer => 22f,
-            TowerType.Cannon => 14f,
-            TowerType.Freeze => 16f,
-            TowerType.Lightning => 28f,
-            _ => 18f
-        };
-
-        static Material CreateProjectileMaterial(Color color)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Unlit")
-                ?? Shader.Find("Unlit/Color");
-            var mat = new Material(shader);
-            if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", color);
-            else mat.color = color;
-            return mat;
+            var proj = go.AddComponent<Projectile>();
+            proj._damage = damage;
+            proj._mode = mode;
+            proj._aoeRadius = aoeRadius;
+            proj._speed = type == TowerType.Archer ? 22f : type == TowerType.Cannon ? 14f : 18f;
+            return proj;
         }
 
         void Update()
@@ -109,39 +62,29 @@ namespace NightWatch
             }
 
             transform.position = Vector3.MoveTowards(transform.position, goal, _speed * Time.deltaTime);
-
-            var dir = goal - transform.position;
-            if (dir.sqrMagnitude > 0.001f)
-                transform.rotation = Quaternion.LookRotation(dir);
-
-            if (Vector3.Distance(transform.position, goal) < 0.35f)
-                Impact();
+            if (Vector3.Distance(transform.position, goal) < 0.35f) Impact();
         }
 
         void Impact()
         {
-            switch (_mode)
+            if (_mode == TowerAttackMode.Aoe)
             {
-                case TowerAttackMode.Aoe:
-                    foreach (var e in GameManager.Instance.ActiveEnemies)
-                    {
-                        if (e == null || !e.IsAlive) continue;
-                        var center = _useTargetPos ? _targetPos : _target.transform.position;
-                        if (Vector3.Distance(center, e.transform.position) <= _aoeRadius)
-                            e.TakeDamage(_damage);
-                    }
-                    break;
-                case TowerAttackMode.Slow:
-                    if (_target != null && _target.IsAlive)
-                    {
-                        _target.TakeDamage(_damage);
-                        _target.ApplySlow(_slowMult, _slowDuration);
-                    }
-                    break;
-                default:
-                    if (_target != null && _target.IsAlive)
-                        _target.TakeDamage(_damage);
-                    break;
+                var center = _useTargetPos ? _targetPos : _target.transform.position;
+                foreach (var e in GameManager.Instance.ActiveEnemies)
+                {
+                    if (e == null || !e.IsAlive) continue;
+                    if (Vector3.Distance(center, e.transform.position) <= _aoeRadius)
+                        e.TakeDamage(_damage);
+                }
+            }
+            else if (_mode == TowerAttackMode.Slow && _target != null && _target.IsAlive)
+            {
+                _target.TakeDamage(_damage);
+                _target.ApplySlow(_slowMult, _slowDuration);
+            }
+            else if (_target != null && _target.IsAlive)
+            {
+                _target.TakeDamage(_damage);
             }
             Destroy(gameObject);
         }

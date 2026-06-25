@@ -1,6 +1,5 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 namespace NightWatch
@@ -12,7 +11,6 @@ namespace NightWatch
         GameObject _hudPanel;
         GameObject _endPanel;
         GameObject _towerPanel;
-        GameObject _tooltipPanel;
         GameObject _rewardPanel;
         Button[] _rewardChoiceButtons = new Button[WaveRewardConfig.OfferCount];
         TextMeshProUGUI[] _rewardNameLabels = new TextMeshProUGUI[WaveRewardConfig.OfferCount];
@@ -26,10 +24,7 @@ namespace NightWatch
         TextMeshProUGUI _messageText;
         TextMeshProUGUI _endTitle;
         TextMeshProUGUI _endBody;
-        TextMeshProUGUI _tooltipText;
-        Image _hpFill;
         RectTransform _hpFillRt;
-        RectTransform _hpDamageRt;
 
         Button[] _towerButtons = new Button[GameConfig.TowerTypesCount];
         Button _waveButton;
@@ -49,30 +44,10 @@ namespace NightWatch
             BuildUi();
         }
 
-        static TMP_FontAsset LoadFont()
-        {
-            try
-            {
-                var def = TMP_Settings.defaultFontAsset;
-                if (def != null) return def;
-            }
-            catch (System.Exception) { }
-
-            var fromResources = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            if (fromResources != null) return fromResources;
-
-            try
-            {
-                return TMP_FontAsset.CreateFontAsset("Arial", "Regular", 90);
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogWarning($"[NightWatch] Font fallback: {e.Message}");
-            }
-
-            var osFont = Font.CreateDynamicFontFromOSFont("Arial", 36);
-            return TMP_FontAsset.CreateFontAsset(osFont);
-        }
+        static TMP_FontAsset LoadFont() =>
+            TMP_Settings.defaultFontAsset
+            ?? Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF")
+            ?? TMP_FontAsset.CreateFontAsset(Font.CreateDynamicFontFromOSFont("Arial", 36));
 
         void BuildUi()
         {
@@ -138,16 +113,6 @@ namespace NightWatch
             var barBgImg = barBg.AddComponent<Image>();
             barBgImg.color = new Color(0.12f, 0.14f, 0.18f);
 
-            var damageGo = new GameObject("HpDamageFill", typeof(RectTransform));
-            damageGo.transform.SetParent(barBg.transform, false);
-            _hpDamageRt = damageGo.GetComponent<RectTransform>();
-            _hpDamageRt.anchorMin = new Vector2(1f, 0f);
-            _hpDamageRt.anchorMax = Vector2.one;
-            _hpDamageRt.offsetMin = Vector2.zero;
-            _hpDamageRt.offsetMax = Vector2.zero;
-            var damageImg = damageGo.AddComponent<Image>();
-            damageImg.color = new Color(0.82f, 0.18f, 0.2f);
-
             var fillGo = new GameObject("HpFill", typeof(RectTransform));
             fillGo.transform.SetParent(barBg.transform, false);
             _hpFillRt = fillGo.GetComponent<RectTransform>();
@@ -155,8 +120,7 @@ namespace NightWatch
             _hpFillRt.anchorMax = Vector2.one;
             _hpFillRt.offsetMin = Vector2.zero;
             _hpFillRt.offsetMax = Vector2.zero;
-            _hpFill = fillGo.AddComponent<Image>();
-            _hpFill.color = new Color(0.25f, 0.85f, 0.45f);
+            fillGo.AddComponent<Image>().color = new Color(0.25f, 0.85f, 0.45f);
 
             _objectiveText = AddAnchoredText(hpPanel.transform, "100/100", 14, FontStyles.Normal,
                 new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -6), new Vector2(0, 20),
@@ -198,34 +162,13 @@ namespace NightWatch
                 var stats = GameConfig.GetTowerStats(type);
                 var color = GameConfig.GetTowerColor(type);
 
-                _towerButtons[i] = CreateTowerButton(towerBar.transform,
-                    GameConfig.TowerNames[idx],
-                    $"{stats.Cost}g",
+                _towerButtons[i] = CreateButton(towerBar.transform,
+                    $"{GameConfig.TowerNames[idx]}\n<size=80%>{stats.Cost}g</size>",
                     new Vector2(startX + i * spacing, -8),
                     new Vector2(132, 72),
                     color,
-                    () => GameManager.Instance?.ToggleTowerType(type),
-                    idx);
+                    () => GameManager.Instance?.ToggleTowerType(type));
             }
-
-            // Підказка — біля кнопки башні, з обмеженням по екрану
-            _tooltipPanel = new GameObject("TowerTooltip", typeof(RectTransform));
-            _tooltipPanel.transform.SetParent(parent, false);
-            var tipRt = _tooltipPanel.GetComponent<RectTransform>();
-            tipRt.anchorMin = tipRt.anchorMax = new Vector2(0.5f, 0.5f);
-            tipRt.pivot = new Vector2(0.5f, 1f);
-            tipRt.anchoredPosition = Vector2.zero;
-            tipRt.sizeDelta = new Vector2(280, 185);
-            var tipBg = _tooltipPanel.AddComponent<Image>();
-            tipBg.color = new Color(0.06f, 0.1f, 0.16f, 0.96f);
-            tipBg.raycastTarget = false;
-
-            _tooltipText = AddAnchoredText(_tooltipPanel.transform, "", 16, FontStyles.Normal,
-                new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero,
-                TextAlignmentOptions.TopLeft, new Color(0.92f, 0.95f, 1f));
-            _tooltipText.margin = new Vector4(12, 10, 12, 10);
-            _tooltipText.richText = true;
-            _tooltipPanel.SetActive(false);
 
             // Низ — повідомлення + кнопка хвилі
             var bottom = CreateBar("BottomBar", parent, new Vector2(0, 0), new Vector2(1, 0), 88);
@@ -237,104 +180,6 @@ namespace NightWatch
             _waveButton = CreateButton(bottom.transform, "Почати хвилю",
                 new Vector2(0, -18), new Vector2(280, 52), new Color(0.22f, 0.58f, 0.32f),
                 () => GameManager.Instance?.StartNextWave());
-        }
-
-        Button CreateTowerButton(Transform parent, string name, string cost, Vector2 pos, Vector2 size,
-            Color color, UnityEngine.Events.UnityAction onClick, int towerIndex)
-        {
-            var btn = CreateButton(parent, $"{name}\n<size=80%>{cost}</size>", pos, size, color, onClick);
-
-            var hover = btn.gameObject.AddComponent<TowerButtonHover>();
-            hover.Init(this, towerIndex);
-
-            return btn;
-        }
-
-        public void ShowTowerTooltip(int towerIndex)
-        {
-            if (_tooltipPanel == null || _tooltipText == null) return;
-            if (towerIndex < 0 || towerIndex >= GameConfig.TowerTypesCount) return;
-
-            var type = (TowerType)towerIndex;
-            var gm = GameManager.Instance;
-            var race = gm != null ? gm.SelectedRace : RaceType.Elves;
-            var diff = gm != null ? gm.SelectedDifficulty : Difficulty.Medium;
-            _tooltipText.text = GameConfig.GetTowerTooltip(type, race, diff);
-            _tooltipPanel.SetActive(true);
-            Canvas.ForceUpdateCanvases();
-            PositionTowerTooltip(towerIndex);
-        }
-
-        void PositionTowerTooltip(int towerIndex)
-        {
-            if (_tooltipPanel == null || towerIndex < 0 || towerIndex >= _towerButtons.Length)
-                return;
-            if (_towerButtons[towerIndex] == null || _canvas == null)
-                return;
-
-            var tipRt = _tooltipPanel.GetComponent<RectTransform>();
-            var btnRt = _towerButtons[towerIndex].GetComponent<RectTransform>();
-            var canvasRt = _canvas.transform as RectTransform;
-
-            float textHeight = _tooltipText != null ? _tooltipText.preferredHeight + 24f : 160f;
-            tipRt.sizeDelta = new Vector2(280f, Mathf.Clamp(textHeight, 160f, 320f));
-
-            const float gap = 10f;
-            const float margin = 14f;
-
-            var btnCorners = new Vector3[4];
-            btnRt.GetWorldCorners(btnCorners);
-            float btnCenterX = (btnCorners[0].x + btnCorners[2].x) * 0.5f;
-            float btnBottomY = btnCorners[0].y;
-            float btnTopY = btnCorners[1].y;
-
-            tipRt.pivot = new Vector2(0.5f, 1f);
-            tipRt.position = new Vector3(btnCenterX, btnBottomY - gap, btnRt.position.z);
-            ClampTooltipToCanvas(tipRt, canvasRt, margin);
-
-            tipRt.GetWorldCorners(btnCorners);
-            if (btnCorners[0].y < GetCanvasWorldRect(canvasRt, margin).yMin)
-            {
-                tipRt.pivot = new Vector2(0.5f, 0f);
-                tipRt.position = new Vector3(btnCenterX, btnTopY + gap, btnRt.position.z);
-                ClampTooltipToCanvas(tipRt, canvasRt, margin);
-            }
-        }
-
-        static Rect GetCanvasWorldRect(RectTransform canvasRt, float margin)
-        {
-            var corners = new Vector3[4];
-            canvasRt.GetWorldCorners(corners);
-            return Rect.MinMaxRect(
-                corners[0].x + margin,
-                corners[0].y + margin,
-                corners[2].x - margin,
-                corners[2].y - margin);
-        }
-
-        static void ClampTooltipToCanvas(RectTransform tipRt, RectTransform canvasRt, float margin)
-        {
-            var bounds = GetCanvasWorldRect(canvasRt, margin);
-            var corners = new Vector3[4];
-            tipRt.GetWorldCorners(corners);
-
-            float minX = corners[0].x;
-            float maxX = corners[2].x;
-            float minY = corners[0].y;
-            float maxY = corners[1].y;
-
-            var pos = tipRt.position;
-            if (minX < bounds.xMin) pos.x += bounds.xMin - minX;
-            if (maxX > bounds.xMax) pos.x -= maxX - bounds.xMax;
-            if (minY < bounds.yMin) pos.y += bounds.yMin - minY;
-            if (maxY > bounds.yMax) pos.y -= maxY - bounds.yMax;
-            tipRt.position = pos;
-        }
-
-        public void HideTowerTooltip()
-        {
-            if (_tooltipPanel != null)
-                _tooltipPanel.SetActive(false);
         }
 
         GameObject CreatePanel(string name, Color bg)
@@ -414,7 +259,7 @@ namespace NightWatch
             {
                 int idx = i;
                 var race = (RaceType)idx;
-                CreateButton(card, GameConfig.GetRaceMenuText(race),
+                CreateButton(card, $"<b>{GameConfig.RaceNames[idx]}</b>\n<size=88%>{GameConfig.RaceBonuses[idx]}</size>",
                     new Vector2(0, -10 - i * 72), new Vector2(520, 58), GameConfig.RaceColors[i],
                     () => GameManager.Instance?.SelectRace(race));
             }
@@ -438,15 +283,18 @@ namespace NightWatch
             _towerInfoText.richText = true;
             _towerInfoText.lineSpacing = -4f;
 
-            _upgradeButton = CreateAnchoredButton(parent, "Апгрейд", new Vector2(0, 0), new Vector2(0.333f, 0),
-                new Vector2(14, 14), new Vector2(-6, 52), new Color(0.28f, 0.48f, 0.78f),
-                () => GameManager.Instance?.TryUpgradeTower());
-            _repairButton = CreateAnchoredButton(parent, "Ремонт", new Vector2(0.333f, 0), new Vector2(0.666f, 0),
-                new Vector2(6, 14), new Vector2(-6, 52), new Color(0.35f, 0.65f, 0.38f),
-                () => GameManager.Instance?.TryRepairTower());
-            _sellButton = CreateAnchoredButton(parent, "Продати", new Vector2(0.666f, 0), new Vector2(1, 0),
-                new Vector2(6, 14), new Vector2(-14, 52), new Color(0.72f, 0.32f, 0.28f),
-                () => GameManager.Instance?.TrySellTower());
+            _upgradeButton = MakeButton(parent, "Апгрейд", new Color(0.28f, 0.48f, 0.78f),
+                () => GameManager.Instance?.TryUpgradeTower(), anchored: true,
+                anchorMin: new Vector2(0, 0), anchorMax: new Vector2(0.333f, 0),
+                offsetMin: new Vector2(14, 14), offsetMax: new Vector2(-6, 52));
+            _repairButton = MakeButton(parent, "Ремонт", new Color(0.35f, 0.65f, 0.38f),
+                () => GameManager.Instance?.TryRepairTower(), anchored: true,
+                anchorMin: new Vector2(0.333f, 0), anchorMax: new Vector2(0.666f, 0),
+                offsetMin: new Vector2(6, 14), offsetMax: new Vector2(-6, 52));
+            _sellButton = MakeButton(parent, "Продати", new Color(0.72f, 0.32f, 0.28f),
+                () => GameManager.Instance?.TrySellTower(), anchored: true,
+                anchorMin: new Vector2(0.666f, 0), anchorMax: new Vector2(1, 0),
+                offsetMin: new Vector2(6, 14), offsetMax: new Vector2(-14, 52));
             _repairButton.gameObject.SetActive(false);
             _towerPanel.SetActive(false);
         }
@@ -463,13 +311,6 @@ namespace NightWatch
             var cardBg = card.AddComponent<Image>();
             cardBg.color = new Color(0.08f, 0.12f, 0.22f, 0.98f);
             cardBg.raycastTarget = true;
-
-            var accent = new GameObject("Accent", typeof(RectTransform));
-            accent.transform.SetParent(card.transform, false);
-            Stretch(accent.GetComponent<RectTransform>());
-            var accentImg = accent.AddComponent<Image>();
-            accentImg.color = new Color(0.35f, 0.65f, 1f, 0.12f);
-            accentImg.raycastTarget = false;
 
             AddAnchoredText(card.transform, "Нагорода за 4-у хвилю!", 34, FontStyles.Bold,
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -28), new Vector2(0, 44),
@@ -512,7 +353,6 @@ namespace NightWatch
         {
             if (_rewardPanel == null || offers == null) return;
             _rewardPanel.SetActive(true);
-            HideTowerTooltip();
             HideTowerPanel();
 
             for (int i = 0; i < WaveRewardConfig.OfferCount; i++)
@@ -554,7 +394,6 @@ namespace NightWatch
             if (_endPanel != null) _endPanel.SetActive(false);
             if (_towerPanel != null) _towerPanel.SetActive(false);
             HideWaveRewardPanel();
-            HideTowerTooltip();
             GameManager.Instance?.SetDifficulty((Difficulty)_selectedDifficultyIdx);
             HighlightDifficultyButton(_selectedDifficultyIdx);
         }
@@ -585,7 +424,7 @@ namespace NightWatch
             int cost = tower.GetUpgradeCost();
             int refund = tower.GetSellRefund();
             var gm = GameManager.Instance;
-            bool hell = gm != null && DifficultyConfig.Get(gm.SelectedDifficulty).TowerRepairEnabled;
+            bool hell = gm != null && gm.Diff.TowerRepairEnabled;
 
             _towerInfoText.text = tower.GetStatsText();
             _upgradeButton.interactable = cost >= 0 && gm != null && gm.Gold >= cost;
@@ -649,17 +488,11 @@ namespace NightWatch
                 }
             }
 
-            if (gm.Crystal != null && _hpFillRt != null && _objectiveText != null)
+            if (_hpFillRt != null && _objectiveText != null && gm.CrystalMaxHp > 0f)
             {
-                float ratio = Mathf.Clamp01(gm.Crystal.CurrentHp / gm.Crystal.MaxHp);
-                _hpFillRt.anchorMin = Vector2.zero;
+                float ratio = Mathf.Clamp01(gm.CrystalHp / gm.CrystalMaxHp);
                 _hpFillRt.anchorMax = new Vector2(ratio, 1f);
-                if (_hpDamageRt != null)
-                {
-                    _hpDamageRt.anchorMin = new Vector2(ratio, 0f);
-                    _hpDamageRt.anchorMax = Vector2.one;
-                }
-                _objectiveText.text = $"{Mathf.CeilToInt(gm.Crystal.CurrentHp)}/{Mathf.CeilToInt(gm.Crystal.MaxHp)}";
+                _objectiveText.text = $"{Mathf.CeilToInt(gm.CrystalHp)}/{Mathf.CeilToInt(gm.CrystalMaxHp)}";
             }
 
             UpdateTowerButtonAffordability(gm.Gold);
@@ -773,14 +606,30 @@ namespace NightWatch
         }
 
         Button CreateButton(Transform parent, string label, Vector2 pos, Vector2 size, Color color,
-            UnityEngine.Events.UnityAction onClick)
+            UnityEngine.Events.UnityAction onClick) =>
+            MakeButton(parent, label, color, onClick, pos: pos, size: size);
+
+        Button MakeButton(Transform parent, string label, Color color, UnityEngine.Events.UnityAction onClick,
+            Vector2? pos = null, Vector2? size = null, bool anchored = false,
+            Vector2 anchorMin = default, Vector2 anchorMax = default,
+            Vector2 offsetMin = default, Vector2 offsetMax = default)
         {
             var go = new GameObject("Button", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
+            if (anchored)
+            {
+                rt.anchorMin = anchorMin;
+                rt.anchorMax = anchorMax;
+                rt.offsetMin = offsetMin;
+                rt.offsetMax = offsetMax;
+            }
+            else
+            {
+                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+                rt.anchoredPosition = pos ?? Vector2.zero;
+                rt.sizeDelta = size ?? new Vector2(160, 52);
+            }
 
             var img = go.AddComponent<Image>();
             img.color = color;
@@ -807,59 +656,7 @@ namespace NightWatch
             tmp.font = _font;
             tmp.raycastTarget = false;
             tmp.richText = true;
-
             return btn;
-        }
-
-        Button CreateAnchoredButton(Transform parent, string label, Vector2 anchorMin, Vector2 anchorMax,
-            Vector2 offsetMin, Vector2 offsetMax, Color color, UnityEngine.Events.UnityAction onClick)
-        {
-            var go = new GameObject("Button", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.offsetMin = offsetMin;
-            rt.offsetMax = offsetMax;
-
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = true;
-
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            var c = btn.colors;
-            c.normalColor = color;
-            c.highlightedColor = Color.Lerp(color, Color.white, 0.35f);
-            c.pressedColor = color * 0.7f;
-            c.disabledColor = color * 0.35f;
-            btn.colors = c;
-            btn.onClick.AddListener(onClick);
-
-            var textGo = new GameObject("Label", typeof(RectTransform));
-            textGo.transform.SetParent(go.transform, false);
-            Stretch(textGo.GetComponent<RectTransform>());
-            var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = label;
-            tmp.fontSize = 17;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = Color.white;
-            tmp.font = _font;
-            tmp.raycastTarget = false;
-            tmp.richText = true;
-
-            return btn;
-        }
-
-        static GameObject CreateImage(Transform parent, Color color)
-        {
-            var go = new GameObject("Fill", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            Stretch(go.GetComponent<RectTransform>());
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = false;
-            return go;
         }
 
         static void Stretch(RectTransform rt)
@@ -877,19 +674,5 @@ namespace NightWatch
             _ => TextAlignmentOptions.Center
         };
     }
-
-    public class TowerButtonHover : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
-    {
-        UIManager _ui;
-        int _index;
-
-        public void Init(UIManager ui, int index)
-        {
-            _ui = ui;
-            _index = index;
-        }
-
-        public void OnPointerEnter(PointerEventData eventData) => _ui?.ShowTowerTooltip(_index);
-        public void OnPointerExit(PointerEventData eventData) => _ui?.HideTowerTooltip();
-    }
 }
+

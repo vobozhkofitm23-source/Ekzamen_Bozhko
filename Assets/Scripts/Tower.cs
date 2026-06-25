@@ -1,7 +1,6 @@
+// Башня: стріляє по ворогах, апгрейд, продаж, ремонт (режим АД).
 using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
-
 namespace NightWatch
 {
     public class Tower : MonoBehaviour
@@ -9,7 +8,6 @@ namespace NightWatch
         public RaceType Race { get; private set; }
         public TowerType Type { get; private set; }
         public int Level { get; private set; } = 1;
-        public bool IsSelected { get; private set; }
         public BuildZone Zone { get; private set; }
 
         TowerStats _stats;
@@ -18,17 +16,16 @@ namespace NightWatch
         float _durability = 1f;
         GameObject _selectionRing;
         LineRenderer _rangeLine;
-        Transform _starsRoot;
         Transform _durabilityRoot;
         Transform _durabilityFill;
-        readonly GameObject[] _stars = new GameObject[GameConfig.MaxUpgradeLevel];
 
         public bool IsBroken => RepairEnabled && _durability <= 0f;
-        public float Durability => _durability;
 
         bool RepairEnabled =>
-            GameManager.Instance != null &&
-            DifficultyConfig.Get(GameManager.Instance.SelectedDifficulty).TowerRepairEnabled;
+            GameManager.Instance != null && GameManager.Instance.Diff.TowerRepairEnabled;
+
+        WaveRewardBonuses Rewards => GameManager.Instance?.ActiveRewards;
+        TowerCombat Combat => GameConfig.GetTowerCombat(_stats, Type, Level, Race, Rewards);
 
         public bool Init(RaceType race, TowerType type, BuildZone zone)
         {
@@ -53,8 +50,8 @@ namespace NightWatch
 
             CreateSelectionRing();
             CreateDurabilityBar();
-            RefreshUpgradeStars();
-            GameManager.Instance?.RegisterTower(this);
+            if (GameManager.Instance != null)
+                GameManager.Instance.Towers.Add(this);
             return true;
         }
 
@@ -85,7 +82,7 @@ namespace NightWatch
             bg.transform.localPosition = Vector3.zero;
             bg.transform.localScale = new Vector3(1.1f, 0.08f, 0.12f);
             Destroy(bg.GetComponent<Collider>());
-            ApplyBarColor(bg.GetComponent<Renderer>(), new Color(0.15f, 0.15f, 0.18f));
+            ModelSpawner.SetUnlitColor(bg.GetComponent<Renderer>(), new Color(0.15f, 0.15f, 0.18f));
 
             var fill = GameObject.CreatePrimitive(PrimitiveType.Cube);
             fill.name = "DurabilityFill";
@@ -93,61 +90,34 @@ namespace NightWatch
             fill.transform.localPosition = new Vector3(-0.55f, 0f, 0f);
             fill.transform.localScale = new Vector3(1.1f, 0.1f, 0.14f);
             Destroy(fill.GetComponent<Collider>());
-            ApplyBarColor(fill.GetComponent<Renderer>(), new Color(0.35f, 0.85f, 0.4f));
+            ModelSpawner.SetUnlitColor(fill.GetComponent<Renderer>(), new Color(0.35f, 0.85f, 0.4f));
             _durabilityFill = fill.transform;
 
             UpdateDurabilityBar();
         }
 
-        static void ApplyBarColor(Renderer r, Color color)
-        {
-            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
-            r.material = new Material(shader);
-            if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", color);
-            else r.material.color = color;
-        }
-
         void UpdateDurabilityBar()
         {
             if (_durabilityRoot == null) return;
-
-            bool show = RepairEnabled;
-            _durabilityRoot.gameObject.SetActive(show);
-            if (!show) return;
+            _durabilityRoot.gameObject.SetActive(RepairEnabled);
+            if (!RepairEnabled || _durabilityFill == null) return;
 
             float pct = Mathf.Clamp01(_durability);
-            if (_durabilityFill != null)
-            {
-                _durabilityFill.localScale = new Vector3(1.1f * pct, 0.1f, 0.14f);
-                _durabilityFill.localPosition = new Vector3(-0.55f * (1f - pct), 0f, 0f);
-                var r = _durabilityFill.GetComponent<Renderer>();
-                if (r != null)
-                {
-                    Color c = pct <= 0f ? new Color(0.85f, 0.2f, 0.2f)
-                        : pct < 0.35f ? new Color(0.95f, 0.55f, 0.2f)
-                        : new Color(0.35f, 0.85f, 0.4f);
-                    if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", c);
-                    else r.material.color = c;
-                }
-            }
-
-            if (IsBroken)
-            {
-                foreach (var rend in GetComponentsInChildren<Renderer>())
-                {
-                    if (rend == null || rend.gameObject.name.Contains("Durability") ||
-                        rend.gameObject.name.Contains("SelectRing") || rend.gameObject.name.Contains("Star"))
-                        continue;
-                }
-            }
+            _durabilityFill.localScale = new Vector3(1.1f * pct, 0.1f, 0.14f);
+            _durabilityFill.localPosition = new Vector3(-0.55f * (1f - pct), 0f, 0f);
+            var r = _durabilityFill.GetComponent<Renderer>();
+            if (r == null) return;
+            Color c = pct <= 0f ? new Color(0.85f, 0.2f, 0.2f)
+                : pct < 0.35f ? new Color(0.95f, 0.55f, 0.2f)
+                : new Color(0.35f, 0.85f, 0.4f);
+            ModelSpawner.SetUnlitColor(r, c);
         }
 
         void UpdateRangeLine() =>
-            RangeRingHelper.Draw(_rangeLine, transform.position, GetAttackRange());
+            RangeRingHelper.Draw(_rangeLine, transform.position, Combat.Range);
 
         public void SetSelected(bool selected)
         {
-            IsSelected = selected;
             if (_selectionRing != null)
                 _selectionRing.SetActive(selected);
             if (_rangeLine != null)
@@ -157,15 +127,7 @@ namespace NightWatch
             }
         }
 
-        public int GetUpgradeCost()
-        {
-            if (Level >= GameConfig.MaxUpgradeLevel) return -1;
-            int cost = GameConfig.GetUpgradeCost(_stats.Cost, Level);
-            var rewards = GameManager.Instance?.ActiveRewards;
-            if (rewards != null && rewards.UpgradeCostMult < 1f)
-                cost = Mathf.Max(1, Mathf.RoundToInt(cost * rewards.UpgradeCostMult));
-            return cost;
-        }
+        public int GetUpgradeCost() => GameConfig.TowerUpgradeCost(_stats.Cost, Level, Rewards);
 
         public void Upgrade()
         {
@@ -174,7 +136,6 @@ namespace NightWatch
             _totalSpent += cost;
             Level++;
             transform.localScale *= 1.06f;
-            RefreshUpgradeStars();
             if (_rangeLine != null && _rangeLine.gameObject.activeSelf)
                 UpdateRangeLine();
         }
@@ -192,146 +153,25 @@ namespace NightWatch
             UpdateDurabilityBar();
         }
 
-        public float GetAttackRange()
-        {
-            float range = _stats.Range * GameConfig.GetUpgradeRangeMult(Level) * GameConfig.GetRaceRangeMult(Race);
-            var rewards = GameManager.Instance?.ActiveRewards;
-            if (rewards != null)
-                range *= rewards.GlobalRangeMult;
-            return range;
-        }
-
-        public float GetDamage()
-        {
-            float dmg = _stats.Damage * GameConfig.GetUpgradeMult(Level) * GameConfig.GetRaceDamageMult(Race);
-            var rewards = GameManager.Instance?.ActiveRewards;
-            if (rewards != null && rewards.ArtilleryDamageMult > 1f &&
-                (Type == TowerType.Cannon || Type == TowerType.Mortar))
-                dmg *= rewards.ArtilleryDamageMult;
-            return dmg;
-        }
-
-        public float GetFireRate()
-        {
-            float rate = _stats.FireRate * GameConfig.GetRaceFireRateMult(Race);
-            var rewards = GameManager.Instance?.ActiveRewards;
-            if (rewards != null && rewards.ArcherFireRateMult > 1f && Type == TowerType.Archer)
-                rate *= rewards.ArcherFireRateMult;
-            return rate;
-        }
-
-        public float GetSlowDuration()
-        {
-            float dur = _stats.SlowDuration;
-            var rewards = GameManager.Instance?.ActiveRewards;
-            if (rewards != null)
-                dur += rewards.FreezeSlowBonus;
-            return dur;
-        }
-
         public string GetStatsText()
         {
-            float dmg = GetDamage();
-            float range = GetAttackRange();
-            float rate = GetFireRate();
-            float dps = dmg * rate;
-
-            var sb = new StringBuilder();
-            sb.AppendLine($"<b>{GameConfig.TowerNames[(int)Type]}</b>");
-            sb.AppendLine($"Рівень: <b>{Level}</b> / {GameConfig.MaxUpgradeLevel}  {GetStarsLabel()}");
-            sb.AppendLine();
-
+            var c = Combat;
+            string text = $"<b>{GameConfig.TowerNames[(int)Type]}</b>\nРівень: <b>{Level}</b> / {GameConfig.MaxUpgradeLevel}\n\n";
             if (RepairEnabled)
             {
                 int pct = Mathf.RoundToInt(_durability * 100f);
-                if (IsBroken)
-                    sb.AppendLine("<color=#FF5555><b>ЗЛАМАНА — не стріляє!</b></color>");
-                else if (pct < 35)
-                    sb.AppendLine($"<color=#FFAA55>Міцність: <b>{pct}%</b></color>");
-                else
-                    sb.AppendLine($"Міцність: <b>{pct}%</b>");
+                text += IsBroken ? "<color=#FF5555><b>ЗЛАМАНА!</b></color>\n" : $"Міцність: <b>{pct}%</b>\n";
             }
-
-            sb.AppendLine($"Урон: <b>{dmg:0.#}</b>");
-            sb.AppendLine($"Дальність: <b>{range:0.#}</b>");
-            sb.AppendLine($"Атака: <b>{rate:0.##}/с</b>  (~{dps:0.#} DPS)");
-
-            switch (_stats.Mode)
-            {
-                case TowerAttackMode.Aoe:
-                    sb.AppendLine($"AOE радіус: <b>{_stats.AoeRadius:0.#}</b>");
-                    break;
-                case TowerAttackMode.Slow:
-                    sb.AppendLine($"Сповільнення: <b>{(1f - _stats.SlowMult) * 100f:0}%</b> на {GetSlowDuration():0.#}с");
-                    break;
-                case TowerAttackMode.Chain:
-                    sb.AppendLine($"Ланцюг: <b>{_stats.ChainTargets}</b> цілей");
-                    break;
-            }
-
+            text += $"Урон: <b>{c.Damage:0.#}</b>  Дальність: <b>{c.Range:0.#}</b>\n";
+            text += $"Атака: <b>{c.FireRate:0.##}/с</b>\n";
+            if (_stats.Mode == TowerAttackMode.Aoe) text += $"AOE: <b>{_stats.AoeRadius:0.#}</b>\n";
+            if (_stats.Mode == TowerAttackMode.Slow) text += $"Slow: <b>{c.SlowDuration:0.#}с</b>\n";
+            if (_stats.Mode == TowerAttackMode.Chain) text += $"Ланцюг: <b>{_stats.ChainTargets}</b>\n";
             int upgradeCost = GetUpgradeCost();
-            if (upgradeCost >= 0)
-                sb.AppendLine($"Апгрейд: <b>{upgradeCost}</b> золота");
-            else
-                sb.AppendLine("<color=#FFD700><b>MAX рівень</b></color>");
-
-            if (RepairEnabled && NeedsRepair())
-                sb.AppendLine($"Ремонт: <b>{GetRepairCost()}</b> золота (25%)");
-
-            sb.AppendLine($"Продаж: <b>+{GetSellRefund()}</b> золота");
-            return sb.ToString();
-        }
-
-        string GetStarsLabel()
-        {
-            if (Level <= 1) return "";
-            return new string('*', Level - 1);
-        }
-
-        void RefreshUpgradeStars()
-        {
-            if (_starsRoot == null)
-            {
-                _starsRoot = new GameObject("UpgradeStars").transform;
-                _starsRoot.SetParent(transform);
-            }
-
-            _starsRoot.localPosition = Vector3.up * 1.55f;
-
-            int starCount = Mathf.Max(0, Level - 1);
-            for (int i = 0; i < GameConfig.MaxUpgradeLevel; i++)
-            {
-                if (_stars[i] == null)
-                    _stars[i] = CreateStarVisual(i, starCount);
-
-                if (i < starCount)
-                {
-                    float spacing = 0.32f;
-                    float start = -(starCount - 1) * spacing * 0.5f;
-                    _stars[i].transform.localPosition = new Vector3(start + i * spacing, 0, 0);
-                }
-
-                _stars[i].SetActive(i < starCount);
-            }
-        }
-
-        GameObject CreateStarVisual(int index, int total)
-        {
-            var star = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            star.name = $"Star_{index + 1}";
-            star.transform.SetParent(_starsRoot);
-            star.transform.localScale = Vector3.one * 0.2f;
-            star.transform.localRotation = Quaternion.Euler(0, 45f, 0);
-
-            var r = star.GetComponent<Renderer>();
-            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
-            r.material = new Material(shader);
-            var gold = new Color(1f, 0.88f, 0.25f);
-            if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", gold);
-            else r.material.color = gold;
-
-            Destroy(star.GetComponent<Collider>());
-            return star;
+            text += upgradeCost >= 0 ? $"Апгрейд: <b>{upgradeCost}</b>g\n" : "<color=#FFD700><b>MAX</b></color>\n";
+            if (RepairEnabled && NeedsRepair()) text += $"Ремонт: <b>{GetRepairCost()}</b>g\n";
+            text += $"Продаж: <b>+{GetSellRefund()}</b>g";
+            return text;
         }
 
         Vector3 GetMuzzlePosition()
@@ -363,58 +203,55 @@ namespace NightWatch
             _attackCooldown -= Time.deltaTime;
             if (_attackCooldown > 0f) return;
 
-            bool fired = _stats.Mode switch
-            {
-                TowerAttackMode.Aoe => TryAoeAttack(),
-                TowerAttackMode.Slow => TrySlowAttack(),
-                TowerAttackMode.Chain => TryChainAttack(),
-                _ => TrySingleAttack()
-            };
-
-            if (fired) _attackCooldown = 1f / GetFireRate();
+            if (TryFire())
+                _attackCooldown = 1f / Combat.FireRate;
         }
 
-        bool TrySingleAttack()
+        bool TryFire()
         {
-            var enemy = FindBestTarget();
-            if (enemy == null) return false;
-            Projectile.Fire(GetMuzzlePosition(), enemy, GetDamage(), Type, TowerAttackMode.Single);
-            return true;
-        }
-
-        bool TryAoeAttack()
-        {
-            var center = FindBestTarget();
-            if (center == null) return false;
-            var targetPos = center.transform.position + Vector3.up * 0.4f;
-            Projectile.FireArc(GetMuzzlePosition(), targetPos, GetDamage(), Type, _stats.AoeRadius);
-            return true;
-        }
-
-        bool TrySlowAttack()
-        {
-            var enemy = FindBestTarget();
-            if (enemy == null) return false;
-            Projectile.Fire(GetMuzzlePosition(), enemy, GetDamage(), Type, TowerAttackMode.Slow,
-                slowMult: _stats.SlowMult, slowDuration: GetSlowDuration());
-            return true;
-        }
-
-        bool TryChainAttack()
-        {
-            var targets = FindChainTargets();
-            if (targets.Count == 0) return false;
-
+            var c = Combat;
             var muzzle = GetMuzzlePosition();
-            foreach (var enemy in targets)
-                Projectile.Fire(muzzle, enemy, GetDamage(), Type, TowerAttackMode.Single);
-            return true;
+
+            switch (_stats.Mode)
+            {
+                case TowerAttackMode.Aoe:
+                {
+                    var center = FindBestTarget(c.Range);
+                    if (center == null) return false;
+                    Projectile.FireArc(muzzle, center.transform.position + Vector3.up * 0.4f,
+                        c.Damage, Type, _stats.AoeRadius);
+                    return true;
+                }
+                case TowerAttackMode.Slow:
+                {
+                    var enemy = FindBestTarget(c.Range);
+                    if (enemy == null) return false;
+                    Projectile.Fire(muzzle, enemy, c.Damage, Type, TowerAttackMode.Slow,
+                        slowMult: _stats.SlowMult, slowDuration: c.SlowDuration);
+                    return true;
+                }
+                case TowerAttackMode.Chain:
+                {
+                    var targets = FindChainTargets(c.Range);
+                    if (targets.Count == 0) return false;
+                    foreach (var enemy in targets)
+                        Projectile.Fire(muzzle, enemy, c.Damage, Type, TowerAttackMode.Single);
+                    return true;
+                }
+                default:
+                {
+                    var enemy = FindBestTarget(c.Range);
+                    if (enemy == null) return false;
+                    Projectile.Fire(muzzle, enemy, c.Damage, Type, TowerAttackMode.Single);
+                    return true;
+                }
+            }
         }
 
-        List<Enemy> FindChainTargets()
+        List<Enemy> FindChainTargets(float range)
         {
             var result = new List<Enemy>();
-            var first = FindBestTarget();
+            var first = FindBestTarget(range);
             if (first == null) return result;
 
             var hit = new HashSet<Enemy>();
@@ -446,7 +283,7 @@ namespace NightWatch
             return result;
         }
 
-        Enemy FindBestTarget()
+        Enemy FindBestTarget(float range)
         {
             Enemy best = null;
             float bestDist = float.MaxValue;
@@ -454,7 +291,7 @@ namespace NightWatch
             {
                 if (e == null || !e.IsAlive) continue;
                 float d = Vector3.Distance(transform.position, e.transform.position);
-                if (d <= GetAttackRange() && d < bestDist)
+                if (d <= range && d < bestDist)
                 {
                     bestDist = d;
                     best = e;

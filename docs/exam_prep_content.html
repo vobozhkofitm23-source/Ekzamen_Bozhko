@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Підготовка до екзамену — Нічний Дозор</title>
+<style>
+  @page { margin: 2cm; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; line-height: 1.45; color: #1a1a1a; max-width: 800px; margin: 0 auto; padding: 20px; }
+  h1 { font-size: 20pt; color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 8px; page-break-after: avoid; }
+  h2 { font-size: 14pt; color: #2a5298; margin-top: 24px; page-break-after: avoid; }
+  h3 { font-size: 12pt; color: #333; margin-top: 16px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10pt; }
+  th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #e8eef5; }
+  code { background: #f4f4f4; padding: 1px 4px; font-family: Consolas, monospace; font-size: 10pt; }
+  pre { background: #f4f4f4; padding: 10px; font-size: 9.5pt; overflow-x: auto; border-left: 3px solid #2a5298; }
+  .part { page-break-before: always; }
+  .part:first-of-type { page-break-before: avoid; }
+  ul { margin: 8px 0; }
+  li { margin: 4px 0; }
+  .answer { color: #2d5016; }
+  .tip { background: #fff8e6; border: 1px solid #e6d9a8; padding: 10px; margin: 12px 0; }
+</style>
+</head>
+<body>
+
+<h1>Частина 1. Питання, які може задати викладач по коду</h1>
+<p>Проєкт: <strong>«Нічний Дозор»</strong> — tower defense, 11 скриптів у <code>Assets/Scripts/</code></p>
+
+<h2>1. Загальна архітектура</h2>
+<p><strong>П: З чого складається гра?</strong><br>
+<span class="answer">О: TDGameBootstrap (запуск), GameManager (логіка), GameConfig (числа), UIManager (інтерфейс), TowerInput (миша), Tower, Enemy, Projectile, LevelMap, BuildZone, ModelSpawner.</span></p>
+
+<p><strong>П: Як гра запускається?</strong><br>
+<span class="answer">О: У TDGameBootstrap метод з [RuntimeInitializeOnLoadMethod] після завантаження сцени створює NightWatchGame і додає GameManager, UIManager, TowerInput.</span></p>
+
+<p><strong>П: Де «мозок» гри?</strong><br>
+<span class="answer">О: GameManager — золото, хвилі, будівництво, HP кристала, спавн, перемога/поразка.</span></p>
+
+<p><strong>П: Де всі числа балансу?</strong><br>
+<span class="answer">О: GameConfig.cs — константи та методи розрахунку статів.</span></p>
+
+<h2>2. Unity: Awake, Start, Update</h2>
+<table>
+<tr><th>Метод</th><th>Коли</th><th>У проєкті</th></tr>
+<tr><td>Awake</td><td>Один раз при створенні</td><td>GameManager.Instance = singleton</td></tr>
+<tr><td>Start</td><td>Перед першим кадром</td><td>Меню, WarmUp моделей</td></tr>
+<tr><td>Update</td><td>Кожен кадр</td><td>Таймер, HUD, атака башен, рух ворогів</td></tr>
+</table>
+
+<p><strong>П: Що таке MonoBehaviour?</strong><br>
+<span class="answer">О: Базовий клас Unity-скрипта на об'єкті сцени; дає Start/Update, transform, Destroy тощо.</span></p>
+
+<h2>3. Патерни</h2>
+<p><strong>П: Singleton?</strong><br>
+<span class="answer">О: GameManager.Instance — один менеджер на всю гру. У Awake: якщо вже є — Destroy.</span></p>
+
+<p><strong>П: Навіщо static class GameConfig?</strong><br>
+<span class="answer">О: Налаштування без об'єкта в сцені — один джерело балансу.</span></p>
+
+<p><strong>П: enum у проєкті?</strong><br>
+<span class="answer">О: RaceType, TowerType, EnemyType, Difficulty, WaveRewardType — списки варіантів.</span></p>
+
+<h2>4. GameManager</h2>
+<p><strong>П: Як ставиться башня?</strong><br>
+<span class="answer">О: TowerInput → клік → FindBuildZoneFromScreen → TryBuildAtZone → new GameObject + Tower.Init().</span></p>
+
+<p><strong>П: Коли хвиля пройдена?</strong><br>
+<span class="answer">О: WaveActive, _spawnDone, ActiveEnemies.Count == 0 → OnWaveComplete().</span></p>
+
+<p><strong>П: Де HP кристала?</strong><br>
+<span class="answer">О: CrystalHp, CrystalMaxHp у GameManager; урон через DamageCrystal().</span></p>
+
+<p><strong>П: Що після закінчення часу хвилі?</strong><br>
+<span class="answer">О: WaveOvertime = true; кристал отримує 2 HP/с, поки ворогів не знищать.</span></p>
+
+<p><strong>П: Нагорода після 4-ї хвилі?</strong><br>
+<span class="answer">О: OnWaveComplete → OfferMilestoneReward → 3 випадкові бонуси з 9 (WaveRewardConfig.PickRandomOffers).</span></p>
+
+<h2>5. Корутини</h2>
+<p><strong>П: Навіщо IEnumerator і yield return?</strong><br>
+<span class="answer">О: SpawnWave спавнить ворогів з паузами (WaitForSeconds), не блокуючи гру. Башні й UI працюють далі.</span></p>
+
+<h2>6. LevelMap і BFS</h2>
+<p><strong>П: Як вороги знають шлях?</strong><br>
+<span class="answer">О: BuildWorldWaypoints → масив Vector3; ворог рухається _path[_wp] → _path[_wp+1]...</span></p>
+
+<p><strong>П: Що таке BFS?</strong><br>
+<span class="answer">О: Пошук в ширину в FindPath — черга, сусіди по 4 напрямках, тільки клітинки дороги до кристала.</span></p>
+
+<p><strong>П: Де можна будувати?</strong><br>
+<span class="answer">О: IsBuildable — не дорога, не дерево, не кристал, не край; BuildZone на таких клітинках.</span></p>
+
+<h2>7. Tower, Enemy, Projectile</h2>
+<p><strong>П: Як башня обирає ціль?</strong><br>
+<span class="answer">О: FindBestTarget — найближчий живий ворог у радіусі Combat.Range.</span></p>
+
+<p><strong>П: Типи атак?</strong><br>
+<span class="answer">О: Single, Aoe (мортира), Slow (freeze), Chain (блискавка, 3 цілі).</span></p>
+
+<p><strong>П: Ворог дійшов до кінця?</strong><br>
+<span class="answer">О: ReachCrystal → DamageCrystal, Destroy.</span></p>
+
+<p><strong>П: Особливість боса?</strong><br>
+<span class="answer">О: 10-а хвиля, багато HP, SpawnBossMinion кожні 3.5 с.</span></p>
+
+<h2>8. Механіки екзамену (RANDOM.ORG)</h2>
+<table>
+<tr><th>Механіка</th><th>Де в коді</th></tr>
+<tr><td>Стартовий вибір (складність + раса)</td><td>BuildMenu, SelectRace, DifficultyConfig, RaceRate/Damage/Gold</td></tr>
+<tr><td>Часові обмеження</td><td>GetWaveTimeLimit, TickWaveTimer, overtime 2 HP/с</td></tr>
+<tr><td>Захист цілі</td><td>CrystalHp, SpawnPaths, програш при 0 HP</td></tr>
+<tr><td>Нагорода після 4-ї хвилі</td><td>WaveRewardConfig, 3 з 9 випадкових</td></tr>
+</table>
+
+<h2>9. Каверзні питання</h2>
+<ul>
+<li>Без EventSystem — кнопки UI не клікаються.</li>
+<li>Ворог не йде напряму — тільки по BFS-шляху по дорозі.</li>
+<li>Продаж — 70% (SellRefundRate = 0.7).</li>
+<li>ActiveEnemies.RemoveAll(e => e == null) — чистка після Destroy.</li>
+</ul>
+
+<div class="tip">
+<strong>Відповідь на 30 секунд:</strong> Гра стартує через TDGameBootstrap. Логіка в GameManager. Башні на BuildZone, вороги по шляху з LevelMap (BFS). Башні стріляють через Projectile. HP кристала в GameManager. Після 4-ї хвилі — випадкова нагорода. Баланс — GameConfig.
+</div>
+
+<div class="part">
+<h1>Частина 2. Константи, масиви та MonoBehaviour</h1>
+
+<h2>1. Константи (const)</h2>
+<p><strong>Константа</strong> — значення, задане один раз і <strong>не змінюється</strong> під час гри.</p>
+<pre>public const int StartingGold = 120;
+public const int WavesPerLevel = 10;
+public const float SellRefundRate = 0.7f;</pre>
+<table>
+<tr><th>Частина</th><th>Значення</th></tr>
+<tr><td>const</td><td>«Не змінювати»</td></tr>
+<tr><td>int</td><td>Ціле число</td></tr>
+<tr><td>float</td><td>Дробове (0.7f)</td></tr>
+</table>
+<p><strong>Навіщо:</strong> усі числа в GameConfig — змінив у одному місці, працює скрізь.</p>
+<p><strong>У грі:</strong> Gold = GameConfig.StartingGold → старт з 120 золота.</p>
+<pre>public const int StartingGold = 120;  // не змінюється
+public int Gold = 120;              // змінюється при покупці</pre>
+
+<h2>2. Масиви ([])</h2>
+<p><strong>Масив</strong> — список значень одного типу з індексами 0, 1, 2...</p>
+<pre>public static readonly string[] TowerNames =
+{
+    "Лучник", "Гармата", "Мортира", "Крижана", "Блискавка", "Снайпер"
+};
+public static readonly float[] RaceRate = { 1.15f, 1f, 1f };</pre>
+<table>
+<tr><th>Індекс</th><th>TowerNames</th><th>RaceRate</th></tr>
+<tr><td>0</td><td>Лучник</td><td>1.15 — ельфи (+15% швидкість)</td></tr>
+<tr><td>1</td><td>Гармата</td><td>1.0 — гноми</td></tr>
+<tr><td>2</td><td>...</td><td>...</td></tr>
+</table>
+<p><strong>Звернення:</strong> <code>TowerNames[0]</code> → «Лучник»; <code>RaceRate[(int)RaceType.Elves]</code> → 1.15</p>
+<p><strong>enum + масив:</strong> Archer=0, Cannon=1... тому (int)type — номер у масиві.</p>
+
+<h2>3. MonoBehaviour</h2>
+<p><strong>MonoBehaviour</strong> — базовий клас Unity для скриптів на об'єктах сцени.</p>
+<pre>public class GameManager : MonoBehaviour  // є в сцені
+public static class GameConfig { ... }    // НЕ MonoBehaviour — лише числа</pre>
+<table>
+<tr><th>Метод</th><th>Коли</th><th>У проєкті</th></tr>
+<tr><td>Awake()</td><td>Створення об'єкта</td><td>Instance = this</td></tr>
+<tr><td>Start()</td><td>Перед 1-м кадром</td><td>Меню, камера</td></tr>
+<tr><td>Update()</td><td>Кожен кадр</td><td>Таймер, стрільба, рух</td></tr>
+</table>
+<p><strong>Також дає:</strong> transform, gameObject, Destroy(), AddComponent(), StartCoroutine().</p>
+
+<h3>Приклад разом</h3>
+<pre>// GameConfig — НЕ MonoBehaviour
+public const int StartingGold = 120;
+public static readonly string[] RaceNames = { "Ельфи", "Гноми", "Орки" };
+
+// GameManager — MonoBehaviour
+public class GameManager : MonoBehaviour {
+    public int Gold = GameConfig.StartingGold;
+    void Start() { _ui?.ShowMainMenu(); }
+    public void SelectRace(RaceType race) {
+        Gold = GameConfig.StartingGold;
+        _ui?.SetMessage(GameConfig.RaceNames[(int)race]);
+    }
+}</pre>
+
+<h2>Шпаргалка</h2>
+<table>
+<tr><th>Термін</th><th>Одна фраза</th></tr>
+<tr><td>Константа</td><td>Фіксоване число в GameConfig, не міняється в грі</td></tr>
+<tr><td>Масив</td><td>Список значень з індексами 0, 1, 2...</td></tr>
+<tr><td>MonoBehaviour</td><td>Скрипт на об'єкті з Start/Update і доступом до сцени</td></tr>
+</table>
+</div>
+
+<p style="margin-top:40px; font-size:9pt; color:#666; text-align:center;">
+Проєкт: Нічний Дозор · Assets/Scripts/ · ekz
+</p>
+</body>
+</html>

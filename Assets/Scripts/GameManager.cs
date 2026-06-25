@@ -1,3 +1,5 @@
+// Головний скрипт: золото, хвилі, будівництво, перемога/поразка.
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,7 +12,6 @@ namespace NightWatch
         public RaceType SelectedRace;
         public Difficulty SelectedDifficulty = Difficulty.Medium;
         public TowerType SelectedTowerType = TowerType.Archer;
-        public int CurrentLevel;
         public int CurrentWave;
         public int Gold = GameConfig.StartingGold;
         public bool WaveActive;
@@ -19,7 +20,8 @@ namespace NightWatch
         public float WaveTimeRemaining { get; private set; }
         public bool WaveOvertime { get; private set; }
 
-        public Objective Crystal { get; private set; }
+        public float CrystalMaxHp { get; private set; }
+        public float CrystalHp { get; private set; }
         public Vector3[][] SpawnPaths { get; private set; }
         public List<BuildZone> BuildZones { get; } = new();
         public List<Tower> Towers { get; } = new();
@@ -29,13 +31,16 @@ namespace NightWatch
         public bool RewardChoicePending { get; private set; }
         public WaveRewardBonuses ActiveRewards { get; } = new();
 
+        public DifficultyParams Diff => DifficultyConfig.Get(SelectedDifficulty);
+
         WaveRewardType[] _rewardOffers;
         Transform _levelRoot;
-        Transform _towerRoot;
         Transform _enemyRoot;
-        WaveSpawner _spawner;
         UIManager _ui;
         bool _levelBuilt;
+        bool _spawnDone;
+        int _spawnIndex;
+        Coroutine _spawnRoutine;
 
         void Awake()
         {
@@ -58,7 +63,7 @@ namespace NightWatch
             {
                 TickWaveTimer();
                 ActiveEnemies.RemoveAll(e => e == null);
-                if (_spawner != null && _spawner.FinishedSpawning && ActiveEnemies.Count == 0)
+                if (_spawnDone && ActiveEnemies.Count == 0)
                     OnWaveComplete();
             }
 
@@ -79,8 +84,18 @@ namespace NightWatch
                 return;
             }
 
-            if (WaveOvertime && Crystal != null)
-                Crystal.TakeDamage(GameConfig.OvertimeCrystalDamagePerSecond * Time.deltaTime);
+            if (WaveOvertime)
+                DamageCrystal(GameConfig.OvertimeCrystalDamagePerSecond * Time.deltaTime);
+        }
+
+        public void SetCrystalHp(float max) { CrystalMaxHp = max; CrystalHp = max; }
+        public void AddCrystalHp(float amount) { CrystalMaxHp += amount; CrystalHp += amount; }
+        public void ResetCrystalHp() => CrystalHp = CrystalMaxHp;
+
+        public void DamageCrystal(float amount)
+        {
+            CrystalHp = Mathf.Max(0f, CrystalHp - amount);
+            if (CrystalHp <= 0f) OnObjectiveDestroyed();
         }
 
         public void SetDifficulty(Difficulty difficulty) => SelectedDifficulty = difficulty;
@@ -89,7 +104,6 @@ namespace NightWatch
         {
             SelectedRace = race;
             Gold = GameConfig.StartingGold;
-            CurrentLevel = 0;
             CurrentWave = 0;
             GameOver = false;
             GameStarted = true;
@@ -99,20 +113,13 @@ namespace NightWatch
             if (!_levelBuilt) BuildLevel();
             else ResetLevelState();
 
-            ApplyCrystalHpForDifficulty();
+            SetCrystalHp(Diff.CrystalHp);
 
             _ui?.ShowGameHud();
             BuildModeActive = true;
             _ui?.HighlightTowerButton((int)SelectedTowerType);
             var diffName = DifficultyConfig.Names[(int)SelectedDifficulty];
             _ui?.SetMessage($"{diffName} · {GameConfig.RaceNames[(int)race]}. Оберіть башню зверху.");
-        }
-
-        void ApplyCrystalHpForDifficulty()
-        {
-            if (Crystal == null) return;
-            var hp = DifficultyConfig.Get(SelectedDifficulty).CrystalHp;
-            Crystal.SetMaxHp(hp);
         }
 
         public void ToggleTowerType(TowerType type)
@@ -126,16 +133,6 @@ namespace NightWatch
                 return;
             }
 
-            SelectedTowerType = type;
-            BuildModeActive = true;
-            DeselectTower();
-            _ui?.HighlightTowerButton((int)type);
-            _ui?.SetMessage($"Башня: {GameConfig.TowerNames[(int)type]}. Наведіть на зелену клітинку.");
-        }
-
-        public void SelectTowerType(TowerType type)
-        {
-            if (SelectedTowerType == type && BuildModeActive) return;
             SelectedTowerType = type;
             BuildModeActive = true;
             DeselectTower();
@@ -171,10 +168,7 @@ namespace NightWatch
             _ui?.HideTowerPanel();
         }
 
-        public void TryBuildAtZone(BuildZone zone) => TryBuildAtZoneSilent(zone);
-
-        /// <summary>Клік по вільній клітинці — будівництво без виділення (вільна камера).</summary>
-        public void TryBuildAtZoneSilent(BuildZone zone)
+        public void TryBuildAtZone(BuildZone zone)
         {
             if (!BuildModeActive || zone == null || zone.Occupied || !GameStarted || GameOver) return;
 
@@ -202,97 +196,76 @@ namespace NightWatch
             _ui?.SetMessage($"{GameConfig.TowerNames[(int)SelectedTowerType]} побудовано!");
         }
 
-        public BuildZone FindBuildZoneAt(Vector3 worldPos)
-        {
-            BuildZone closest = null;
-            float best = float.MaxValue;
-            float maxDist = LevelMap.CellSize * 0.65f;
-
-            foreach (var zone in BuildZones)
-            {
-                if (zone == null || zone.Occupied) continue;
-                var zp = zone.transform.position;
-                float d = Vector2.Distance(
-                    new Vector2(worldPos.x, worldPos.z),
-                    new Vector2(zp.x, zp.z));
-                if (d <= maxDist && d < best)
-                {
-                    best = d;
-                    closest = zone;
-                }
-            }
-            return closest;
-        }
-
         public BuildZone FindBuildZoneFromScreen(Camera cam, Vector2 screenPos)
         {
             if (cam == null) return null;
-
             var ray = cam.ScreenPointToRay(screenPos);
 
-            BuildZone direct = null;
-            float directDist = float.MaxValue;
+            BuildZone zone = null;
+            float best = float.MaxValue;
             foreach (var hit in Physics.RaycastAll(ray, 400f))
             {
-                var zone = hit.collider.GetComponent<BuildZone>()
-                    ?? hit.collider.GetComponentInParent<BuildZone>();
-                if (zone == null) continue;
-                if (hit.distance < directDist)
-                {
-                    directDist = hit.distance;
-                    direct = zone;
-                }
+                var z = hit.collider.GetComponent<BuildZone>() ?? hit.collider.GetComponentInParent<BuildZone>();
+                if (z != null && hit.distance < best) { best = hit.distance; zone = z; }
             }
-            if (direct != null && !direct.Occupied) return direct;
+            if (zone != null && !zone.Occupied) return zone;
 
-            var plane = new Plane(Vector3.up, Vector3.zero);
-            if (!plane.Raycast(ray, out float enter)) return null;
-            return FindBuildZoneAt(ray.GetPoint(enter));
+            if (!RayToGround(ray, out Vector3 ground)) return null;
+            return FindNearestBuildZone(ground);
         }
 
         public Tower FindTowerFromScreen(Camera cam, Vector2 screenPos)
         {
             if (cam == null) return null;
-
             var ray = cam.ScreenPointToRay(screenPos);
-            Tower direct = null;
-            float directDist = float.MaxValue;
 
+            Tower tower = null;
+            float best = float.MaxValue;
             foreach (var hit in Physics.RaycastAll(ray, 400f))
             {
-                var tower = hit.collider.GetComponentInParent<Tower>();
-                if (tower == null) continue;
-                if (hit.distance < directDist)
-                {
-                    directDist = hit.distance;
-                    direct = tower;
-                }
+                var t = hit.collider.GetComponentInParent<Tower>();
+                if (t != null && hit.distance < best) { best = hit.distance; tower = t; }
             }
-            if (direct != null) return direct;
+            if (tower != null) return tower;
 
-            var plane = new Plane(Vector3.up, Vector3.zero);
-            if (!plane.Raycast(ray, out float enter)) return null;
-            var worldPt = ray.GetPoint(enter);
+            if (!RayToGround(ray, out Vector3 ground)) return null;
 
-            Tower best = null;
+            Tower nearest = null;
             float bestDist = float.MaxValue;
-            const float maxSelectDist = 2f;
-
             foreach (var t in Towers)
             {
                 if (t == null) continue;
-                var tp = t.transform.position;
-                float d = Vector2.Distance(
-                    new Vector2(worldPt.x, worldPt.z),
-                    new Vector2(tp.x, tp.z));
-                if (d <= maxSelectDist && d < bestDist)
-                {
-                    bestDist = d;
-                    best = t;
-                }
+                var p = t.transform.position;
+                float d = Vector2.Distance(new Vector2(ground.x, ground.z), new Vector2(p.x, p.z));
+                if (d <= 2f && d < bestDist) { bestDist = d; nearest = t; }
             }
+            return nearest;
+        }
 
-            return best;
+        static bool RayToGround(Ray ray, out Vector3 point)
+        {
+            if (new Plane(Vector3.up, Vector3.zero).Raycast(ray, out float enter))
+            {
+                point = ray.GetPoint(enter);
+                return true;
+            }
+            point = default;
+            return false;
+        }
+
+        BuildZone FindNearestBuildZone(Vector3 worldPos)
+        {
+            BuildZone closest = null;
+            float best = float.MaxValue;
+            float maxDist = LevelMap.CellSize * 0.65f;
+            foreach (var zone in BuildZones)
+            {
+                if (zone == null || zone.Occupied) continue;
+                var zp = zone.transform.position;
+                float d = Vector2.Distance(new Vector2(worldPos.x, worldPos.z), new Vector2(zp.x, zp.z));
+                if (d <= maxDist && d < best) { best = d; closest = zone; }
+            }
+            return closest;
         }
 
         public void TryUpgradeTower()
@@ -310,7 +283,7 @@ namespace NightWatch
         public void TryRepairTower()
         {
             if (SelectedTower == null) return;
-            if (!DifficultyConfig.Get(SelectedDifficulty).TowerRepairEnabled)
+            if (!Diff.TowerRepairEnabled)
             {
                 _ui?.SetMessage("Ремонт тільки в режимі АД!");
                 return;
@@ -369,7 +342,62 @@ namespace NightWatch
             else
                 _ui?.SetMessage($"Хвиля {CurrentWave}/{GameConfig.WavesPerLevel} — {limit:0}с на перемогу!");
 
-            _spawner.StartWave(CurrentWave - 1);
+            _spawnDone = false;
+            _spawnIndex = 0;
+            if (_spawnRoutine != null) StopCoroutine(_spawnRoutine);
+            _spawnRoutine = StartCoroutine(SpawnWave(CurrentWave - 1));
+        }
+
+        IEnumerator SpawnWave(int waveIndex)
+        {
+            var paths = SpawnPaths;
+
+            if (GameConfig.IsBossWave(waveIndex))
+            {
+                SetMessage("БОС! Викликає швидких міньонів!");
+                int scouts = Mathf.CeilToInt(3 * Diff.EnemyCountMult);
+                for (int i = 0; i < scouts; i++)
+                {
+                    SpawnEnemy(EnemyType.Scout, waveIndex, paths[i % paths.Length]);
+                    yield return new WaitForSeconds(1.2f);
+                }
+                yield return new WaitForSeconds(2f);
+                if (paths.Length > 1) SpawnEnemy(EnemyType.Tank, waveIndex, paths[1], true);
+                _spawnDone = true;
+                yield break;
+            }
+
+            var composition = GameConfig.GetWaveComposition(waveIndex, SelectedDifficulty);
+            float pause = GameConfig.MiniWavePause * Diff.MiniWavePauseMult;
+            int miniCount = 0;
+
+            for (int t = 0; t < GameConfig.EnemyTypesCount; t++)
+            {
+                for (int i = 0; i < composition[t]; i++)
+                {
+                    SpawnEnemy((EnemyType)t, waveIndex, paths[_spawnIndex++ % paths.Length]);
+                    miniCount++;
+                    yield return new WaitForSeconds(GameConfig.EnemySpawnInterval);
+                    if (miniCount >= GameConfig.MiniWaveSize)
+                    {
+                        miniCount = 0;
+                        SetMessage("Міні-хвиля... наступна група");
+                        yield return new WaitForSeconds(pause);
+                    }
+                }
+                if (composition[t] > 0) yield return new WaitForSeconds(1.2f);
+            }
+
+            _spawnDone = true;
+        }
+
+        void SpawnEnemy(EnemyType type, int waveIndex, Vector3[] path, bool boss = false)
+        {
+            if (path == null || path.Length == 0) return;
+            var go = new GameObject(boss ? "Boss" : $"Enemy_{type}");
+            go.transform.SetParent(_enemyRoot);
+            go.transform.position = path[0];
+            go.AddComponent<Enemy>().Initialize(type, waveIndex, path, boss);
         }
 
         void OnWaveComplete()
@@ -377,9 +405,7 @@ namespace NightWatch
             WaveActive = false;
             WaveOvertime = false;
             WaveTimeRemaining = 0f;
-            int waveGold = GameConfig.ScaleGoldIncome(Mathf.RoundToInt(
-                GameConfig.GoldPerWave * DifficultyConfig.Get(SelectedDifficulty).WaveGoldMult));
-            waveGold += GameConfig.ScaleGoldIncome(ActiveRewards.BonusGoldPerWave);
+            int waveGold = Mathf.RoundToInt(GameConfig.GoldPerWave * Diff.WaveGoldMult) + ActiveRewards.BonusGoldPerWave;
             Gold += waveGold;
 
             if (CurrentWave >= GameConfig.WavesPerLevel)
@@ -409,46 +435,12 @@ namespace NightWatch
             if (!RewardChoicePending) return;
 
             ActiveRewards.MilestoneClaimed = true;
-            ActiveRewards.Chosen = type;
             RewardChoicePending = false;
-
+            WaveRewardConfig.Apply(type, ActiveRewards, this);
             var def = WaveRewardConfig.Get(type);
-            switch (type)
-            {
-                case WaveRewardType.GoldRush:
-                    Gold += GameConfig.ScaleGoldIncome(200);
-                    break;
-                case WaveRewardType.RichHunt:
-                    ActiveRewards.KillGoldMult = 1.3f;
-                    break;
-                case WaveRewardType.VictorTax:
-                    ActiveRewards.BonusGoldPerWave = 40;
-                    break;
-                case WaveRewardType.SwiftArchers:
-                    ActiveRewards.ArcherFireRateMult = 1.15f;
-                    break;
-                case WaveRewardType.HeavyArtillery:
-                    ActiveRewards.ArtilleryDamageMult = 1.2f;
-                    break;
-                case WaveRewardType.FrostStorm:
-                    ActiveRewards.FreezeSlowBonus = 0.8f;
-                    break;
-                case WaveRewardType.ExtendedRange:
-                    ActiveRewards.GlobalRangeMult = 1.1f;
-                    break;
-                case WaveRewardType.MasterUpgrade:
-                    ActiveRewards.UpgradeCostMult = 0.75f;
-                    break;
-                case WaveRewardType.StrongCrystal:
-                    if (Crystal != null)
-                    {
-                        Crystal.AddMaxHp(30f);
-                        _ui?.RefreshHud();
-                    }
-                    break;
-            }
 
             _ui?.HideWaveRewardPanel();
+            _ui?.RefreshHud();
             _ui?.SetMessage($"Обрано: {def.Name}! {def.Description}");
         }
 
@@ -469,15 +461,10 @@ namespace NightWatch
             enemy.Initialize(EnemyType.Scout, CurrentWave - 1, path);
         }
 
-        public void RegisterTower(Tower t) => Towers.Add(t);
-
-        public void RegisterEnemy(Enemy e) => ActiveEnemies.Add(e);
-
         public void OnEnemyKilled(Enemy e, int gold)
         {
             ActiveEnemies.Remove(e);
-            Gold += GameConfig.ScaleGoldIncome(Mathf.RoundToInt(
-                gold * GameConfig.GetRaceGoldMult(SelectedRace) * ActiveRewards.KillGoldMult));
+            Gold += GameConfig.KillGold(gold, SelectedRace, ActiveRewards);
         }
 
         public void OnObjectiveDestroyed() => EndGame(false);
@@ -505,24 +492,18 @@ namespace NightWatch
             _ui?.ShowMainMenu();
         }
 
-        public Transform GetEnemyContainer() => _enemyRoot;
-
         void BuildLevel()
         {
             if (_levelBuilt) return;
 
             _levelRoot = new GameObject("Level").transform;
-            _towerRoot = new GameObject("Towers").transform;
-            _towerRoot.SetParent(_levelRoot);
             _enemyRoot = new GameObject("Enemies").transform;
             _enemyRoot.SetParent(_levelRoot);
 
             BuildTerrain();
             SpawnPaths = BuildSpawnPaths();
-            Crystal = BuildCrystal();
+            BuildCrystal();
             BuildBuildZones();
-
-            _spawner = gameObject.AddComponent<WaveSpawner>();
             _levelBuilt = true;
         }
 
@@ -577,18 +558,15 @@ namespace NightWatch
             return paths;
         }
 
-        Objective BuildCrystal()
+        void BuildCrystal()
         {
             var pos = LevelMap.CellToWorld(LevelMap.CrystalCell);
             var go = new GameObject("Crystal");
             go.transform.SetParent(_levelRoot);
             go.transform.position = pos;
-            var obj = go.AddComponent<Objective>();
-            obj.MaxHp = DifficultyConfig.Get(SelectedDifficulty).CrystalHp;
-
+            SetCrystalHp(Diff.CrystalHp);
             var model = ModelSpawner.Spawn("detail-crystal-large", pos, go.transform, 1.5f);
             model.transform.localPosition = Vector3.zero;
-            return obj;
         }
 
         void BuildBuildZones()
@@ -615,8 +593,8 @@ namespace NightWatch
         void ResetLevelState()
         {
             ClearTowersAndEnemies();
-            Crystal?.ResetHp();
-            ApplyCrystalHpForDifficulty();
+            ResetCrystalHp();
+            SetCrystalHp(Diff.CrystalHp);
             ActiveRewards.Reset();
             RewardChoicePending = false;
             _ui?.HideWaveRewardPanel();
@@ -647,7 +625,8 @@ namespace NightWatch
             _levelBuilt = false;
             BuildZones.Clear();
             Towers.Clear();
-            Crystal = null;
+            CrystalHp = 0f;
+            CrystalMaxHp = 0f;
             SpawnPaths = null;
             ActiveEnemies.Clear();
         }

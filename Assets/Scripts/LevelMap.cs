@@ -23,16 +23,6 @@ namespace NightWatch
         static HashSet<Vector2Int> _pathCells;
         static HashSet<Vector2Int> _treeCells;
 
-        public static IReadOnlyCollection<Vector2Int> PathCells
-        {
-            get { EnsureInit(); return _pathCells; }
-        }
-
-        public static IReadOnlyCollection<Vector2Int> TreeCells
-        {
-            get { EnsureInit(); return _treeCells; }
-        }
-
         public static bool IsPathCell(Vector2Int cell)
         {
             EnsureInit();

@@ -58,6 +58,14 @@ namespace NightWatch
             return BuildProceduralEnemy(type, isBoss, parent);
         }
 
+        public static void SetUnlitColor(Renderer r, Color color)
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color");
+            r.material = new Material(shader);
+            if (r.material.HasProperty("_BaseColor")) r.material.SetColor("_BaseColor", color);
+            else r.material.color = color;
+        }
+
         static GameObject BuildProceduralTower(TowerType type, RaceType race, Transform parent)
         {
             var root = new GameObject("TowerModel");
@@ -175,12 +183,6 @@ namespace NightWatch
                 name.Contains("selection") ? new Color(0.3f, 0.8f, 0.3f) :
                 new Color(0.35f, 0.55f, 0.35f);
             return go;
-        }
-
-        static void StripColliders(GameObject go)
-        {
-            foreach (var c in go.GetComponentsInChildren<Collider>())
-                Object.Destroy(c);
         }
 
         static void EnsureKenneyMaterialOnRenderers(GameObject root)
