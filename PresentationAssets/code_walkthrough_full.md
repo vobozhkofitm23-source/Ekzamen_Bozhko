@@ -20,7 +20,7 @@ Assets/Scenes/SampleScene.unity — карта Level (дорога, BuildZone, �
 
 **Потік гри:**
 
-1. `GameBootstrap.Init()` — створює `NightWatch`, камеру зверху.
+1. Unity завантажує `SampleScene` — `Level`, `Main Camera`, `NightWatch`.
 2. `UIManager` — меню вибору раси.
 3. `StartWithRace` — HUD, можна будувати башні.
 4. Кнопка «Хвиля» → `SpawnWave` → вороги по `EnemyPath`.
@@ -146,12 +146,7 @@ Assets/Scenes/SampleScene.unity — карта Level (дорога, BuildZone, �
 
 ## GameBootstrap
 
-```csharp
-[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-static void Init()
-```
-
-Автоматично при Play: `NightWatch` + orthographic camera (y=40, size=16).
+Видалено. `Game` і `UIManager` висить на об'єкті **`NightWatch`** у сцені.
 
 ---
 

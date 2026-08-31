@@ -35,10 +35,10 @@ namespace NightWatch
             _race = Text(_hud.transform, "", 18, new Vector2(200, 500), TextAlignmentOptions.TopLeft);
             _gold = Text(_hud.transform, "Золото: 0", 24, new Vector2(500, 500), TextAlignmentOptions.TopRight);
             _msg = Text(_hud.transform, "", 18, new Vector2(0, -450));
-            _archer = Btn(_hud.transform, "Лучник", new Vector2(-100, 420), new Color(0.35f, 0.75f, 0.45f),
-                () => Game.I.SelectTower(TowerType.Archer));
-            _cannon = Btn(_hud.transform, "Гармата", new Vector2(100, 420), new Color(0.75f, 0.45f, 0.3f),
-                () => Game.I.SelectTower(TowerType.Cannon));
+            _archer = TowerBtn(_hud.transform, TowerType.Archer, new Vector2(-100, 420),
+                new Color(0.35f, 0.75f, 0.45f), () => Game.I.SelectTower(TowerType.Archer));
+            _cannon = TowerBtn(_hud.transform, TowerType.Cannon, new Vector2(100, 420),
+                new Color(0.75f, 0.45f, 0.3f), () => Game.I.SelectTower(TowerType.Cannon));
             _waveBtn = Btn(_hud.transform, "Хвиля", new Vector2(400, -450), Color.gray, () => Game.I.StartNextWave());
 
             _end = Panel(canvas.transform, new Color(0, 0, 0, 0.9f));
@@ -115,6 +115,14 @@ namespace NightWatch
             t.alignment = align;
             t.raycastTarget = false;
             return t;
+        }
+
+        static Button TowerBtn(Transform parent, TowerType type, Vector2 pos, Color color,
+            UnityEngine.Events.UnityAction click)
+        {
+            var price = Text(parent, $"{GameConfig.TowerCost(type)} зол.", 16, pos + new Vector2(0, 44));
+            price.color = new Color(1f, 0.92f, 0.45f);
+            return Btn(parent, GameConfig.TowerNames[(int)type], pos, color, click);
         }
 
         static Button Btn(Transform parent, string label, Vector2 pos, Color color, UnityEngine.Events.UnityAction click)

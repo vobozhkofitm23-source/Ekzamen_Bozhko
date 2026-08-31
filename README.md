@@ -33,12 +33,16 @@ Tower defense для захисту курсової / екзамену. Про�
 
 Відкрийте Unity → сцена `Assets/Scenes/SampleScene.unity` → **Play**
 
-Гра створюється автоматично через `GameBootstrap` (об'єкт `NightWatch`).
+На сцені вже є:
+- `Level` — карта
+- `Main Camera` — вид зверху
+- `NightWatch` — скрипти `Game` і `UIManager`
 
 ## Документація для захисту
 
+- `PresentationAssets/full_code_guide.md` / `.pdf` — **повний гайд по коду** (читати з цього)
 - `PresentationAssets/exam_prep_code_qa.md` / `.pdf` — питання та відповіді
-- `PresentationAssets/code_walkthrough_full.md` / `.pdf` — розбір коду
+- `PresentationAssets/code_walkthrough_full.md` / `.pdf` — короткий розбір по файлах
 
 PDF згенерувати:
 

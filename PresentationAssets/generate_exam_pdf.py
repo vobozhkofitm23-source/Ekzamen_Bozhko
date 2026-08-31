@@ -275,6 +275,12 @@ def main():
             "Повний розбір коду — Нічний Дозор",
             "Нічний Дозор — код",
         )
+        build_pdf(
+            ROOT / "full_code_guide.md",
+            ROOT / "full_code_guide.pdf",
+            "Повний гайд по коду — Нічний Дозор",
+            "Нічний Дозор — гайд",
+        )
         return
 
     build_pdf(args.input, args.output, args.title, args.footer)

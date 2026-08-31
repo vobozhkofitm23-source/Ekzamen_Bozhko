@@ -342,23 +342,4 @@ namespace NightWatch
             Object.Destroy(p.GetComponent<Collider>());
         }
     }
-
-    public static class GameBootstrap
-    {
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        static void Init()
-        {
-            if (Object.FindFirstObjectByType<Game>()) return;
-            var root = new GameObject("NightWatch");
-            root.AddComponent<Game>();
-            root.AddComponent<UIManager>();
-
-            var cam = Camera.main ?? new GameObject("Camera").AddComponent<Camera>();
-            cam.tag = "MainCamera";
-            cam.orthographic = true;
-            cam.orthographicSize = 16f;
-            cam.transform.SetPositionAndRotation(new Vector3(0, 40, 0), Quaternion.Euler(90, 0, 0));
-            cam.backgroundColor = new Color(0.12f, 0.14f, 0.18f);
-        }
-    }
 }
