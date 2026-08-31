@@ -21,8 +21,8 @@ from reportlab.platypus import (
 )
 
 ROOT = Path(__file__).parent
-MD = ROOT / "exam_prep_code_qa.md"
-OUT = ROOT / "exam_prep_code_qa.pdf"
+DEFAULT_MD = ROOT / "exam_prep_code_qa.md"
+DEFAULT_OUT = ROOT / "exam_prep_code_qa.pdf"
 
 FONT = Path(r"C:\Windows\Fonts\arial.ttf")
 FONT_BOLD = Path(r"C:\Windows\Fonts\arialbd.ttf")
@@ -218,34 +218,66 @@ def md_to_flowables(text: str) -> list:
     return flow
 
 
-def add_page_number(canvas, doc):
+def add_page_number(canvas, doc, footer: str):
     canvas.saveState()
     canvas.setFont("Arial", 8)
     canvas.setFillColor(colors.grey)
-    canvas.drawCentredString(A4[0] / 2, 12 * mm, f"Нічний Дозор — стор. {canvas.getPageNumber()}")
+    canvas.drawCentredString(A4[0] / 2, 12 * mm, f"{footer} — стор. {canvas.getPageNumber()}")
     canvas.restoreState()
 
 
-def main():
-    if not MD.exists():
-        raise SystemExit(f"Markdown not found: {MD}")
+def build_pdf(md_path: Path, out_path: Path, title: str, footer: str):
+    if not md_path.exists():
+        raise SystemExit(f"Markdown not found: {md_path}")
     register_fonts()
-    text = MD.read_text(encoding="utf-8")
-    # Skip duplicate title block intro — first line is h1 in md
+    text = md_path.read_text(encoding="utf-8")
     flow = md_to_flowables(text)
 
     doc = SimpleDocTemplate(
-        str(OUT),
+        str(out_path),
         pagesize=A4,
         leftMargin=18 * mm,
         rightMargin=18 * mm,
         topMargin=16 * mm,
         bottomMargin=18 * mm,
-        title="Підготовка до захисту — Нічний Дозор",
+        title=title,
         author="NightWatch",
     )
-    doc.build(flow, onFirstPage=add_page_number, onLaterPages=add_page_number)
-    print(f"PDF created: {OUT}")
+    doc.build(
+        flow,
+        onFirstPage=lambda c, d: add_page_number(c, d, footer),
+        onLaterPages=lambda c, d: add_page_number(c, d, footer),
+    )
+    print(f"PDF created: {out_path}")
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Generate PDF from markdown (Ukrainian).")
+    parser.add_argument("--input", type=Path, default=DEFAULT_MD)
+    parser.add_argument("--output", type=Path, default=DEFAULT_OUT)
+    parser.add_argument("--title", default="Підготовка до захисту — Нічний Дозор")
+    parser.add_argument("--footer", default="Нічний Дозор")
+    parser.add_argument("--all", action="store_true", help="Build exam Q&A and code walkthrough PDFs")
+    args = parser.parse_args()
+
+    if args.all:
+        build_pdf(
+            ROOT / "exam_prep_code_qa.md",
+            ROOT / "exam_prep_code_qa.pdf",
+            "Підготовка до захисту — Нічний Дозор",
+            "Нічний Дозор — Q&A",
+        )
+        build_pdf(
+            ROOT / "code_walkthrough_full.md",
+            ROOT / "code_walkthrough_full.pdf",
+            "Повний розбір коду — Нічний Дозор",
+            "Нічний Дозор — код",
+        )
+        return
+
+    build_pdf(args.input, args.output, args.title, args.footer)
 
 
 if __name__ == "__main__":

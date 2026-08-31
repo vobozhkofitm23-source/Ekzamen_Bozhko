@@ -6,673 +6,130 @@ namespace NightWatch
 {
     public class UIManager : MonoBehaviour
     {
-        Canvas _canvas;
-        GameObject _menuPanel;
-        GameObject _hudPanel;
-        GameObject _endPanel;
-        GameObject _towerPanel;
-        GameObject _rewardPanel;
-        Button[] _rewardChoiceButtons = new Button[WaveRewardConfig.OfferCount];
-        TextMeshProUGUI[] _rewardNameLabels = new TextMeshProUGUI[WaveRewardConfig.OfferCount];
-        TextMeshProUGUI[] _rewardDescLabels = new TextMeshProUGUI[WaveRewardConfig.OfferCount];
-
-        TextMeshProUGUI _waveText;
-        TextMeshProUGUI _timerText;
-        TextMeshProUGUI _goldText;
-        TextMeshProUGUI _towerCountText;
-        TextMeshProUGUI _objectiveText;
-        TextMeshProUGUI _messageText;
-        TextMeshProUGUI _endTitle;
-        TextMeshProUGUI _endBody;
-        RectTransform _hpFillRt;
-
-        Button[] _towerButtons = new Button[GameConfig.TowerTypesCount];
-        Button _waveButton;
-        Button _upgradeButton;
-        Button _repairButton;
-        Button _sellButton;
-        TextMeshProUGUI _towerInfoText;
-        TMP_FontAsset _font;
-        int _selectedTowerIdx = -1;
-        int _selectedDifficultyIdx = 1;
-        Button[] _difficultyButtons = new Button[3];
+        GameObject _menu, _hud, _end;
+        TextMeshProUGUI _wave, _gold, _hp, _timer, _race, _msg, _endMsg;
+        Button _waveBtn, _archer, _cannon;
 
         void Awake()
         {
-            _font = LoadFont();
-            UiEventSetup.Ensure();
-            BuildUi();
-        }
-
-        static TMP_FontAsset LoadFont() =>
-            TMP_Settings.defaultFontAsset
-            ?? Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF")
-            ?? TMP_FontAsset.CreateFontAsset(Font.CreateDynamicFontFromOSFont("Arial", 36));
-
-        void BuildUi()
-        {
-            var canvasGo = new GameObject("Canvas");
-            _canvas = canvasGo.AddComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 200;
-
-            var scaler = canvasGo.AddComponent<CanvasScaler>();
+            var canvas = new GameObject("Canvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            var c = canvas.GetComponent<Canvas>();
+            c.renderMode = RenderMode.ScreenSpaceOverlay;
+            var scaler = canvas.GetComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
-            scaler.referencePixelsPerUnit = 100;
 
-            canvasGo.AddComponent<GraphicRaycaster>();
+            _menu = Panel(canvas.transform, new Color(0, 0, 0, 0.4f));
+            Text(_menu.transform, "Нічний Дозор", 48, new Vector2(0, 120));
+            Text(_menu.transform, "Оберіть расу:", 24, new Vector2(0, 50));
+            Btn(_menu.transform, "Ельфи\n+15% швидкість", new Vector2(-120, -30), new Color(0.3f, 0.7f, 0.4f),
+                () => Game.I.StartWithRace(Race.Elf));
+            Btn(_menu.transform, "Гноми\n+20% урон", new Vector2(120, -30), new Color(0.6f, 0.45f, 0.3f),
+                () => Game.I.StartWithRace(Race.Dwarf));
 
-            _menuPanel = CreatePanel("MenuPanel", new Color(0.04f, 0.06f, 0.1f, 1f));
-            BuildMenu(_menuPanel.transform);
+            _hud = Panel(canvas.transform, Color.clear);
+            _hud.GetComponent<Image>().raycastTarget = false;
+            _hp = Text(_hud.transform, "HP: 100", 20, new Vector2(-500, 500), TextAlignmentOptions.TopLeft);
+            _wave = Text(_hud.transform, "Хвиля 0", 22, new Vector2(-200, 500), TextAlignmentOptions.TopLeft);
+            _timer = Text(_hud.transform, "Час: —", 20, new Vector2(0, 500));
+            _race = Text(_hud.transform, "", 18, new Vector2(200, 500), TextAlignmentOptions.TopLeft);
+            _gold = Text(_hud.transform, "Золото: 0", 24, new Vector2(500, 500), TextAlignmentOptions.TopRight);
+            _msg = Text(_hud.transform, "", 18, new Vector2(0, -450));
+            _archer = Btn(_hud.transform, "Лучник", new Vector2(-100, 420), new Color(0.35f, 0.75f, 0.45f),
+                () => Game.I.SelectTower(TowerType.Archer));
+            _cannon = Btn(_hud.transform, "Гармата", new Vector2(100, 420), new Color(0.75f, 0.45f, 0.3f),
+                () => Game.I.SelectTower(TowerType.Cannon));
+            _waveBtn = Btn(_hud.transform, "Хвиля", new Vector2(400, -450), Color.gray, () => Game.I.StartNextWave());
 
-            _hudPanel = CreatePanel("HudPanel", Color.clear);
-            _hudPanel.GetComponent<Image>().raycastTarget = false;
-            BuildHud(_hudPanel.transform);
-
-            _towerPanel = CreateAnchoredPanel("TowerPanel", new Vector2(0, 0), new Vector2(0, 0),
-                new Vector2(20, 20), new Vector2(380, 260));
-            BuildTowerPanel(_towerPanel.transform);
-
-            _endPanel = CreatePanel("EndPanel", new Color(0.04f, 0.06f, 0.1f, 0.98f));
-            BuildEndScreen(_endPanel.transform);
-
-            BuildWaveRewardPanel();
-
-            ShowMainMenu();
+            _end = Panel(canvas.transform, new Color(0, 0, 0, 0.9f));
+            _endMsg = Text(_end.transform, "", 40, Vector2.zero);
+            Btn(_end.transform, "Знову", new Vector2(0, -80), Color.gray, () => Game.I.Restart());
+            ShowMenu();
         }
 
-        void BuildHud(Transform parent)
+        public void ShowMenu() => SetScreen(menu: true);
+        public void ShowHud() => SetScreen(hud: true);
+        public void ShowEnd(bool win, string reason = null)
         {
-            // Верхня смуга статистики
-            var statsBar = CreateBar("StatsBar", parent, new Vector2(0, 1), new Vector2(1, 1), 64);
-
-            // Кристал + HP — ліворуч
-            var hpPanel = new GameObject("HpPanel", typeof(RectTransform));
-            hpPanel.transform.SetParent(statsBar.transform, false);
-            var hpRt = hpPanel.GetComponent<RectTransform>();
-            hpRt.anchorMin = new Vector2(0, 0);
-            hpRt.anchorMax = new Vector2(0, 1);
-            hpRt.pivot = new Vector2(0, 0.5f);
-            hpRt.anchoredPosition = new Vector2(16, 0);
-            hpRt.sizeDelta = new Vector2(240, 0);
-
-            AddAnchoredText(hpPanel.transform, "Кристал", 15, FontStyles.Bold,
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1), new Vector2(0, -4), new Vector2(0, 22),
-                TextAlignmentOptions.MidlineLeft, new Color(0.55f, 0.95f, 1f));
-
-            var barBg = new GameObject("HpBarBg", typeof(RectTransform));
-            barBg.transform.SetParent(hpPanel.transform, false);
-            var barRt = barBg.GetComponent<RectTransform>();
-            barRt.anchorMin = new Vector2(0, 0.5f);
-            barRt.anchorMax = new Vector2(1, 0.5f);
-            barRt.pivot = new Vector2(0, 0.5f);
-            barRt.anchoredPosition = new Vector2(0, -6);
-            barRt.sizeDelta = new Vector2(0, 16);
-            var barBgImg = barBg.AddComponent<Image>();
-            barBgImg.color = new Color(0.12f, 0.14f, 0.18f);
-
-            var fillGo = new GameObject("HpFill", typeof(RectTransform));
-            fillGo.transform.SetParent(barBg.transform, false);
-            _hpFillRt = fillGo.GetComponent<RectTransform>();
-            _hpFillRt.anchorMin = Vector2.zero;
-            _hpFillRt.anchorMax = Vector2.one;
-            _hpFillRt.offsetMin = Vector2.zero;
-            _hpFillRt.offsetMax = Vector2.zero;
-            fillGo.AddComponent<Image>().color = new Color(0.25f, 0.85f, 0.45f);
-
-            _objectiveText = AddAnchoredText(hpPanel.transform, "100/100", 14, FontStyles.Normal,
-                new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -6), new Vector2(0, 20),
-                TextAlignmentOptions.Center);
-
-            // Хвиля — по центру лівої частини (не перекриває HP)
-            _waveText = AddAnchoredText(statsBar.transform, "Хвиля 0/10", 22, FontStyles.Bold,
-                new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(270, 0), new Vector2(220, 0),
-                TextAlignmentOptions.MidlineLeft);
-
-            _towerCountText = AddAnchoredText(statsBar.transform, "Башні: 0", 18, FontStyles.Normal,
-                new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(270, -22), new Vector2(200, 0),
-                TextAlignmentOptions.MidlineLeft, new Color(0.75f, 0.8f, 0.9f));
-
-            _timerText = AddAnchoredText(statsBar.transform, "Час: —", 20, FontStyles.Bold,
-                new Vector2(0.5f, 0), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, 0), new Vector2(220, 0),
-                TextAlignmentOptions.Center, new Color(0.85f, 0.95f, 1f));
-
-            // Золото — праворуч, великим шрифтом
-            _goldText = AddAnchoredText(statsBar.transform, "Золото: 120", 24, FontStyles.Bold,
-                new Vector2(1, 0), new Vector2(1, 1), new Vector2(1, 0.5f), new Vector2(-16, 0), new Vector2(260, 0),
-                TextAlignmentOptions.MidlineRight, new Color(1f, 0.88f, 0.35f));
-
-            // Панель вибору башен
-            var towerBar = CreateBar("TowerSelectBar", parent, new Vector2(0, 1), new Vector2(1, 1), 108);
-            var towerBarRt = towerBar.GetComponent<RectTransform>();
-            towerBarRt.offsetMax = new Vector2(0, -64);
-
-            AddAnchoredText(towerBar.transform, "Оберіть башню:", 18, FontStyles.Bold,
-                new Vector2(0, 0), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(16, 0), new Vector2(200, 0),
-                TextAlignmentOptions.MidlineLeft, new Color(0.75f, 0.85f, 1f));
-
-            float startX = -400f;
-            float spacing = 148f;
-            for (int i = 0; i < GameConfig.TowerTypesCount; i++)
-            {
-                int idx = i;
-                var type = (TowerType)idx;
-                var stats = GameConfig.GetTowerStats(type);
-                var color = GameConfig.GetTowerColor(type);
-
-                _towerButtons[i] = CreateButton(towerBar.transform,
-                    $"{GameConfig.TowerNames[idx]}\n<size=80%>{stats.Cost}g</size>",
-                    new Vector2(startX + i * spacing, -8),
-                    new Vector2(132, 72),
-                    color,
-                    () => GameManager.Instance?.ToggleTowerType(type));
-            }
-
-            // Низ — повідомлення + кнопка хвилі
-            var bottom = CreateBar("BottomBar", parent, new Vector2(0, 0), new Vector2(1, 0), 88);
-
-            _messageText = AddAnchoredText(bottom.transform, "", 18, FontStyles.Italic,
-                new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -8), new Vector2(-320, 28),
-                TextAlignmentOptions.Top, new Color(0.85f, 0.9f, 1f));
-
-            _waveButton = CreateButton(bottom.transform, "Почати хвилю",
-                new Vector2(0, -18), new Vector2(280, 52), new Color(0.22f, 0.58f, 0.32f),
-                () => GameManager.Instance?.StartNextWave());
+            _end.SetActive(true);
+            _endMsg.text = win ? "Перемога!" : (reason ?? "Поразка");
         }
 
-        GameObject CreatePanel(string name, Color bg)
+        void SetScreen(bool menu = false, bool hud = false)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(_canvas.transform, false);
-            Stretch(go.GetComponent<RectTransform>());
-            var img = go.AddComponent<Image>();
-            img.color = bg;
-            img.raycastTarget = true;
-            return go;
+            _menu.SetActive(menu);
+            _hud.SetActive(hud);
+            _end.SetActive(false);
         }
 
-        GameObject CreateAnchoredPanel(string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pos, Vector2 size)
+        public void ShowMessage(string text) => _msg.text = text;
+
+        public void HighlightTower(TowerType type)
         {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(_canvas.transform, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.pivot = anchorMax;
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
-            var img = go.AddComponent<Image>();
-            img.color = new Color(0.08f, 0.12f, 0.2f, 0.95f);
-            img.raycastTarget = true;
-            return go;
+            bool archer = type == TowerType.Archer;
+            _archer.GetComponent<Image>().color = archer ? new Color(0.35f, 0.95f, 0.45f) : new Color(0.2f, 0.45f, 0.25f);
+            _cannon.GetComponent<Image>().color = archer ? new Color(0.45f, 0.28f, 0.18f) : new Color(0.95f, 0.55f, 0.25f);
         }
-
-        GameObject CreateBar(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, float height)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.offsetMin = new Vector2(0, anchorMin.y < 0.5f ? 0 : -height);
-            rt.offsetMax = new Vector2(0, anchorMin.y < 0.5f ? height : 0);
-            var img = go.AddComponent<Image>();
-            img.color = new Color(0.06f, 0.09f, 0.14f, 0.92f);
-            img.raycastTarget = true;
-            return go;
-        }
-
-        void BuildMenu(Transform parent)
-        {
-            var card = CreateCard(parent, new Vector2(720, 580));
-
-            AddText(card, "Нічний Дозор", 54, new Vector2(0, 240), FontStyles.Bold);
-            AddText(card, "Оберіть складність:", 24, new Vector2(0, 185), FontStyles.Bold);
-
-            var diffRow = new GameObject("DifficultyRow", typeof(RectTransform));
-            diffRow.transform.SetParent(card, false);
-            var diffRt = diffRow.GetComponent<RectTransform>();
-            diffRt.anchorMin = diffRt.anchorMax = new Vector2(0.5f, 0.5f);
-            diffRt.anchoredPosition = new Vector2(0, 130);
-            diffRt.sizeDelta = new Vector2(540, 52);
-
-            for (int i = 0; i < 3; i++)
-            {
-                int idx = i;
-                var diff = (Difficulty)idx;
-                _difficultyButtons[i] = CreateButton(diffRow.transform, DifficultyConfig.Names[i],
-                    new Vector2(-180 + i * 180, 0), new Vector2(160, 52), DifficultyConfig.Colors[i],
-                    () =>
-                    {
-                        _selectedDifficultyIdx = idx;
-                        GameManager.Instance?.SetDifficulty(diff);
-                        HighlightDifficultyButton(idx);
-                    });
-            }
-            HighlightDifficultyButton(_selectedDifficultyIdx);
-
-            AddText(card, "Оберіть расу:", 24, new Vector2(0, 70), FontStyles.Bold);
-
-            for (int i = 0; i < 3; i++)
-            {
-                int idx = i;
-                var race = (RaceType)idx;
-                CreateButton(card, $"<b>{GameConfig.RaceNames[idx]}</b>\n<size=88%>{GameConfig.RaceBonuses[idx]}</size>",
-                    new Vector2(0, -10 - i * 72), new Vector2(520, 58), GameConfig.RaceColors[i],
-                    () => GameManager.Instance?.SelectRace(race));
-            }
-        }
-
-        void HighlightDifficultyButton(int idx)
-        {
-            for (int i = 0; i < 3; i++)
-            {
-                if (_difficultyButtons[i] == null) continue;
-                var baseColor = DifficultyConfig.Colors[i];
-                _difficultyButtons[i].GetComponent<Image>().color = i == idx ? baseColor : baseColor * 0.55f;
-            }
-        }
-
-        void BuildTowerPanel(Transform parent)
-        {
-            _towerInfoText = AddAnchoredText(parent, "Башня", 17, FontStyles.Normal,
-                new Vector2(0, 0.35f), new Vector2(1, 1), new Vector2(0, 1), new Vector2(14, -10), new Vector2(-28, 0),
-                TextAlignmentOptions.TopLeft, new Color(0.92f, 0.95f, 1f));
-            _towerInfoText.richText = true;
-            _towerInfoText.lineSpacing = -4f;
-
-            _upgradeButton = MakeButton(parent, "Апгрейд", new Color(0.28f, 0.48f, 0.78f),
-                () => GameManager.Instance?.TryUpgradeTower(), anchored: true,
-                anchorMin: new Vector2(0, 0), anchorMax: new Vector2(0.333f, 0),
-                offsetMin: new Vector2(14, 14), offsetMax: new Vector2(-6, 52));
-            _repairButton = MakeButton(parent, "Ремонт", new Color(0.35f, 0.65f, 0.38f),
-                () => GameManager.Instance?.TryRepairTower(), anchored: true,
-                anchorMin: new Vector2(0.333f, 0), anchorMax: new Vector2(0.666f, 0),
-                offsetMin: new Vector2(6, 14), offsetMax: new Vector2(-6, 52));
-            _sellButton = MakeButton(parent, "Продати", new Color(0.72f, 0.32f, 0.28f),
-                () => GameManager.Instance?.TrySellTower(), anchored: true,
-                anchorMin: new Vector2(0.666f, 0), anchorMax: new Vector2(1, 0),
-                offsetMin: new Vector2(6, 14), offsetMax: new Vector2(-14, 52));
-            _repairButton.gameObject.SetActive(false);
-            _towerPanel.SetActive(false);
-        }
-
-        void BuildWaveRewardPanel()
-        {
-            _rewardPanel = CreatePanel("WaveRewardPanel", new Color(0.02f, 0.04f, 0.08f, 0.88f));
-
-            var card = new GameObject("RewardCard", typeof(RectTransform));
-            card.transform.SetParent(_rewardPanel.transform, false);
-            var rt = card.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(980, 460);
-            var cardBg = card.AddComponent<Image>();
-            cardBg.color = new Color(0.08f, 0.12f, 0.22f, 0.98f);
-            cardBg.raycastTarget = true;
-
-            AddAnchoredText(card.transform, "Нагорода за 4-у хвилю!", 34, FontStyles.Bold,
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -28), new Vector2(0, 44),
-                TextAlignmentOptions.Center, new Color(1f, 0.88f, 0.35f));
-
-            AddAnchoredText(card.transform, "Оберіть один бонус — діє до кінця гри", 18, FontStyles.Normal,
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -68), new Vector2(0, 28),
-                TextAlignmentOptions.Center, new Color(0.75f, 0.82f, 0.95f));
-
-            float[] xs = { -310f, 0f, 310f };
-            for (int i = 0; i < WaveRewardConfig.OfferCount; i++)
-            {
-                int idx = i;
-                var slot = new GameObject($"RewardSlot_{i}", typeof(RectTransform));
-                slot.transform.SetParent(card.transform, false);
-                var srt = slot.GetComponent<RectTransform>();
-                srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 0.5f);
-                srt.anchoredPosition = new Vector2(xs[i], -20);
-                srt.sizeDelta = new Vector2(280, 300);
-                var slotBg = slot.AddComponent<Image>();
-                slotBg.color = new Color(0.12f, 0.16f, 0.26f, 1f);
-
-                _rewardNameLabels[i] = AddAnchoredText(slot.transform, "Бонус", 22, FontStyles.Bold,
-                    new Vector2(0, 0.55f), new Vector2(1, 1), new Vector2(0.5f, 1f), new Vector2(0, -16), new Vector2(-20, 0),
-                    TextAlignmentOptions.Center, Color.white);
-
-                _rewardDescLabels[i] = AddAnchoredText(slot.transform, "Опис", 16, FontStyles.Normal,
-                    new Vector2(0, 0.22f), new Vector2(1, 0.55f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(-24, 0),
-                    TextAlignmentOptions.Center, new Color(0.82f, 0.88f, 0.98f));
-
-                _rewardChoiceButtons[i] = CreateButton(slot.transform, "Обрати",
-                    new Vector2(0, -95), new Vector2(200, 48), new Color(0.28f, 0.55f, 0.38f),
-                    () => { });
-            }
-
-            _rewardPanel.SetActive(false);
-        }
-
-        public void ShowWaveRewardPanel(WaveRewardType[] offers)
-        {
-            if (_rewardPanel == null || offers == null) return;
-            _rewardPanel.SetActive(true);
-            HideTowerPanel();
-
-            for (int i = 0; i < WaveRewardConfig.OfferCount; i++)
-            {
-                if (i >= offers.Length || _rewardChoiceButtons[i] == null) continue;
-                var def = WaveRewardConfig.Get(offers[i]);
-                _rewardNameLabels[i].text = def.Name;
-                _rewardDescLabels[i].text = def.Description;
-
-                var img = _rewardChoiceButtons[i].GetComponent<Image>();
-                img.color = def.Color * 0.85f;
-
-                _rewardChoiceButtons[i].onClick.RemoveAllListeners();
-                var type = offers[i];
-                _rewardChoiceButtons[i].onClick.AddListener(() => GameManager.Instance?.ChooseWaveReward(type));
-            }
-        }
-
-        public void HideWaveRewardPanel()
-        {
-            if (_rewardPanel != null)
-                _rewardPanel.SetActive(false);
-        }
-
-        void BuildEndScreen(Transform parent)
-        {
-            var card = CreateCard(parent, new Vector2(580, 340));
-            _endTitle = AddText(card, "Перемога!", 60, new Vector2(0, 70), FontStyles.Bold);
-            _endBody = AddText(card, "", 26, new Vector2(0, 0));
-            CreateButton(card, "Грати знову", new Vector2(0, -90), new Vector2(280, 60),
-                new Color(0.28f, 0.48f, 0.78f), () => GameManager.Instance?.RestartGame());
-        }
-
-        public void ShowMainMenu()
-        {
-            if (_menuPanel == null) return;
-            _menuPanel.SetActive(true);
-            if (_hudPanel != null) _hudPanel.SetActive(false);
-            if (_endPanel != null) _endPanel.SetActive(false);
-            if (_towerPanel != null) _towerPanel.SetActive(false);
-            HideWaveRewardPanel();
-            GameManager.Instance?.SetDifficulty((Difficulty)_selectedDifficultyIdx);
-            HighlightDifficultyButton(_selectedDifficultyIdx);
-        }
-
-        public void ShowGameHud()
-        {
-            if (_hudPanel == null) return;
-            if (_menuPanel != null) _menuPanel.SetActive(false);
-            _hudPanel.SetActive(true);
-            if (_endPanel != null) _endPanel.SetActive(false);
-        }
-
-        public void ShowEndScreen(bool victory)
-        {
-            if (_endPanel == null || _endTitle == null || _endBody == null) return;
-            _endPanel.SetActive(true);
-            _endTitle.text = victory ? "Перемога!" : "Поразка";
-            _endTitle.color = victory ? new Color(0.45f, 1f, 0.55f) : new Color(1f, 0.45f, 0.45f);
-            _endBody.text = victory
-                ? "Ви перемогли боса на 10-й хвилі та захистили кристал!"
-                : "Кристал знищено. Спробуйте іншу расу або розстановку башен.";
-        }
-
-        public void ShowTowerPanel(Tower tower)
-        {
-            if (tower == null) return;
-            _towerPanel.SetActive(true);
-            int cost = tower.GetUpgradeCost();
-            int refund = tower.GetSellRefund();
-            var gm = GameManager.Instance;
-            bool hell = gm != null && gm.Diff.TowerRepairEnabled;
-
-            _towerInfoText.text = tower.GetStatsText();
-            _upgradeButton.interactable = cost >= 0 && gm != null && gm.Gold >= cost;
-            _sellButton.interactable = true;
-
-            if (_repairButton != null)
-            {
-                _repairButton.gameObject.SetActive(hell);
-                if (hell)
-                {
-                    int repairCost = tower.GetRepairCost();
-                    _repairButton.interactable = tower.NeedsRepair() && gm != null && gm.Gold >= repairCost;
-                    var repLabel = _repairButton.GetComponentInChildren<TextMeshProUGUI>();
-                    if (repLabel != null)
-                        repLabel.text = tower.IsBroken ? $"Ремонт ({repairCost}g)" :
-                            tower.NeedsRepair() ? $"Ремонт ({repairCost}g)" : "OK";
-                }
-            }
-
-            var upLabel = _upgradeButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (upLabel != null)
-                upLabel.text = cost >= 0 ? $"Апгрейд ({cost}g)" : "MAX";
-
-            var sellLabel = _sellButton.GetComponentInChildren<TextMeshProUGUI>();
-            if (sellLabel != null)
-                sellLabel.text = $"Продати +{refund}";
-        }
-
-        public void HideTowerPanel() => _towerPanel.SetActive(false);
 
         public void RefreshHud()
         {
-            if (GameManager.Instance == null || _hudPanel == null || !_hudPanel.activeSelf) return;
-            var gm = GameManager.Instance;
-            if (_waveText != null) _waveText.text = $"Хвиля {gm.CurrentWave}/{GameConfig.WavesPerLevel}";
-            if (_goldText != null) _goldText.text = $"Золото: {gm.Gold}";
-            if (_towerCountText != null) _towerCountText.text = $"Башні: {gm.Towers.Count}";
-
-            if (_timerText != null)
+            var g = Game.I;
+            if (g == null || !_hud.activeSelf) return;
+            _wave.text = $"Хвиля {g.CurrentWave}/{GameConfig.WaveCount}";
+            _gold.text = $"Золото: {g.Gold}";
+            _hp.text = $"HP: {Mathf.CeilToInt(g.CrystalHp)}";
+            _race.text = GameConfig.RaceNames[(int)g.PlayerRace];
+            if (g.IsWaveActive && g.WaveTimeLeft > 0f)
             {
-                if (gm.WaveActive)
-                {
-                    if (gm.WaveOvertime)
-                    {
-                        _timerText.text = "Час: 0:00";
-                        _timerText.color = new Color(1f, 0.35f, 0.35f);
-                    }
-                    else
-                    {
-                        int sec = Mathf.CeilToInt(gm.WaveTimeRemaining);
-                        _timerText.text = $"Час: {sec / 60}:{sec % 60:00}";
-                        _timerText.color = sec <= 10
-                            ? new Color(1f, 0.65f, 0.35f)
-                            : new Color(0.85f, 0.95f, 1f);
-                    }
-                }
-                else
-                {
-                    _timerText.text = "Час: —";
-                    _timerText.color = new Color(0.65f, 0.72f, 0.82f);
-                }
+                int s = Mathf.CeilToInt(g.WaveTimeLeft);
+                _timer.text = $"Час: {s / 60}:{s % 60:00}";
             }
-
-            if (_hpFillRt != null && _objectiveText != null && gm.CrystalMaxHp > 0f)
-            {
-                float ratio = Mathf.Clamp01(gm.CrystalHp / gm.CrystalMaxHp);
-                _hpFillRt.anchorMax = new Vector2(ratio, 1f);
-                _objectiveText.text = $"{Mathf.CeilToInt(gm.CrystalHp)}/{Mathf.CeilToInt(gm.CrystalMaxHp)}";
-            }
-
-            UpdateTowerButtonAffordability(gm.Gold);
-
-            if (_waveButton != null)
-                _waveButton.interactable = !gm.RewardChoicePending && !gm.WaveActive && !gm.GameOver
-                    && gm.CurrentWave < GameConfig.WavesPerLevel;
-
-            if (gm.SelectedTower != null && _towerPanel != null && _towerPanel.activeSelf)
-                ShowTowerPanel(gm.SelectedTower);
+            else _timer.text = "Час: —";
+            _waveBtn.interactable = !g.IsWaveActive && !g.IsGameOver && g.CurrentWave < GameConfig.WaveCount;
         }
 
-        void UpdateTowerButtonAffordability(int gold)
+        static GameObject Panel(Transform parent, Color color)
         {
-            for (int i = 0; i < GameConfig.TowerTypesCount; i++)
-            {
-                if (_towerButtons[i] == null) continue;
-                var stats = GameConfig.GetTowerStats((TowerType)i);
-                bool canAfford = gold >= stats.Cost;
-                var img = _towerButtons[i].GetComponent<Image>();
-                var baseColor = GameConfig.GetTowerColor((TowerType)i);
-                if (_selectedTowerIdx >= 0 && _selectedTowerIdx == i)
-                    img.color = baseColor;
-                else
-                    img.color = canAfford ? baseColor * 0.85f : baseColor * 0.4f;
-                _towerButtons[i].interactable = canAfford || _selectedTowerIdx == i;
-            }
+            var p = new GameObject("Panel", typeof(RectTransform), typeof(Image));
+            p.transform.SetParent(parent, false);
+            var r = p.GetComponent<RectTransform>();
+            r.anchorMin = Vector2.zero;
+            r.anchorMax = Vector2.one;
+            r.offsetMin = r.offsetMax = Vector2.zero;
+            p.GetComponent<Image>().color = color;
+            return p;
         }
 
-        public void SetMessage(string msg)
+        static TextMeshProUGUI Text(Transform parent, string text, float size, Vector2 pos,
+            TextAlignmentOptions align = TextAlignmentOptions.Center)
         {
-            if (_messageText != null) _messageText.text = msg;
+            var o = new GameObject("Text", typeof(RectTransform));
+            o.transform.SetParent(parent, false);
+            var r = o.GetComponent<RectTransform>();
+            r.anchorMin = r.anchorMax = new Vector2(0.5f, 0.5f);
+            r.anchoredPosition = pos;
+            r.sizeDelta = new Vector2(600, 60);
+            var t = o.AddComponent<TextMeshProUGUI>();
+            t.text = text;
+            t.fontSize = size;
+            t.alignment = align;
+            t.raycastTarget = false;
+            return t;
         }
 
-        public void HighlightTowerButton(int idx)
+        static Button Btn(Transform parent, string label, Vector2 pos, Color color, UnityEngine.Events.UnityAction click)
         {
-            _selectedTowerIdx = idx;
-            if (GameManager.Instance == null) return;
-            for (int i = 0; i < GameConfig.TowerTypesCount; i++)
-            {
-                if (_towerButtons[i] == null) continue;
-                var baseColor = GameConfig.GetTowerColor((TowerType)i);
-                if (idx < 0)
-                    _towerButtons[i].GetComponent<Image>().color = baseColor * 0.65f;
-                else
-                    _towerButtons[i].GetComponent<Image>().color = i == idx ? baseColor : baseColor * 0.65f;
-            }
-            UpdateTowerButtonAffordability(GameManager.Instance.Gold);
+            var o = new GameObject("Button", typeof(RectTransform), typeof(Image), typeof(Button));
+            o.transform.SetParent(parent, false);
+            var r = o.GetComponent<RectTransform>();
+            r.anchorMin = r.anchorMax = new Vector2(0.5f, 0.5f);
+            r.anchoredPosition = pos;
+            r.sizeDelta = new Vector2(180, 64);
+            o.GetComponent<Image>().color = color;
+            var b = o.GetComponent<Button>();
+            b.onClick.AddListener(click);
+            Text(o.transform, label, 16, Vector2.zero).richText = true;
+            return b;
         }
-
-        Transform CreateCard(Transform parent, Vector2 size)
-        {
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(parent, false);
-            var rt = card.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = size;
-            var bg = card.AddComponent<Image>();
-            bg.color = new Color(0.1f, 0.14f, 0.22f, 1f);
-            bg.raycastTarget = true;
-            return card.transform;
-        }
-
-        TextMeshProUGUI AddAnchoredText(Transform parent, string text, float size, FontStyles style,
-            Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPos, Vector2 sizeDelta,
-            TextAlignmentOptions align, Color? color = null)
-        {
-            var go = new GameObject("Text", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = anchorMin;
-            rt.anchorMax = anchorMax;
-            rt.pivot = pivot;
-            rt.anchoredPosition = anchoredPos;
-            rt.sizeDelta = sizeDelta;
-
-            var tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = text;
-            tmp.fontSize = size;
-            tmp.fontStyle = style;
-            tmp.alignment = align;
-            tmp.color = color ?? Color.white;
-            tmp.font = _font;
-            tmp.raycastTarget = false;
-            tmp.textWrappingMode = TextWrappingModes.Normal;
-            tmp.overflowMode = TextOverflowModes.Overflow;
-            return tmp;
-        }
-
-        TextMeshProUGUI AddText(Transform parent, string text, float size, Vector2 pos,
-            FontStyles style = FontStyles.Normal, TextAnchor anchor = TextAnchor.MiddleCenter, Color? color = null)
-        {
-            var go = new GameObject("Text", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = new Vector2(800, 80);
-
-            var tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text = text;
-            tmp.fontSize = size;
-            tmp.fontStyle = style;
-            tmp.alignment = AnchorToAlignment(anchor);
-            tmp.color = color ?? Color.white;
-            tmp.font = _font;
-            tmp.raycastTarget = false;
-            tmp.textWrappingMode = TextWrappingModes.Normal;
-            tmp.overflowMode = TextOverflowModes.Overflow;
-            return tmp;
-        }
-
-        Button CreateButton(Transform parent, string label, Vector2 pos, Vector2 size, Color color,
-            UnityEngine.Events.UnityAction onClick) =>
-            MakeButton(parent, label, color, onClick, pos: pos, size: size);
-
-        Button MakeButton(Transform parent, string label, Color color, UnityEngine.Events.UnityAction onClick,
-            Vector2? pos = null, Vector2? size = null, bool anchored = false,
-            Vector2 anchorMin = default, Vector2 anchorMax = default,
-            Vector2 offsetMin = default, Vector2 offsetMax = default)
-        {
-            var go = new GameObject("Button", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = go.GetComponent<RectTransform>();
-            if (anchored)
-            {
-                rt.anchorMin = anchorMin;
-                rt.anchorMax = anchorMax;
-                rt.offsetMin = offsetMin;
-                rt.offsetMax = offsetMax;
-            }
-            else
-            {
-                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
-                rt.anchoredPosition = pos ?? Vector2.zero;
-                rt.sizeDelta = size ?? new Vector2(160, 52);
-            }
-
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            img.raycastTarget = true;
-
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            var c = btn.colors;
-            c.normalColor = color;
-            c.highlightedColor = Color.Lerp(color, Color.white, 0.35f);
-            c.pressedColor = color * 0.7f;
-            c.disabledColor = color * 0.35f;
-            btn.colors = c;
-            btn.onClick.AddListener(onClick);
-
-            var textGo = new GameObject("Label", typeof(RectTransform));
-            textGo.transform.SetParent(go.transform, false);
-            Stretch(textGo.GetComponent<RectTransform>());
-            var tmp = textGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = label;
-            tmp.fontSize = 17;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = Color.white;
-            tmp.font = _font;
-            tmp.raycastTarget = false;
-            tmp.richText = true;
-            return btn;
-        }
-
-        static void Stretch(RectTransform rt)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-        }
-
-        static TextAlignmentOptions AnchorToAlignment(TextAnchor anchor) => anchor switch
-        {
-            TextAnchor.MiddleLeft => TextAlignmentOptions.MidlineLeft,
-            TextAnchor.MiddleRight => TextAlignmentOptions.MidlineRight,
-            TextAnchor.LowerCenter => TextAlignmentOptions.BottomGeoAligned,
-            _ => TextAlignmentOptions.Center
-        };
     }
 }
-

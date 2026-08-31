@@ -33,6 +33,7 @@ ExportedObj/
 .consulo/
 .idea/
 .vs/
+Assets/_Recovery/
 *.blend1
 *.blend1.meta
 ~$*

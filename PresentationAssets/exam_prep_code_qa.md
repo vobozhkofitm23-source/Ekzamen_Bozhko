@@ -1,8 +1,11 @@
 # Підготовка до захисту — «Нічний Дозор»
 
-Документ містить відповіді на два блоки питань:
-1. Які питання по коду може задати викладач
-2. Що таке константи, масиви та MonoBehaviour
+Документ містить відповіді на три блоки:
+1. Питання по коду, які може задати викладач
+2. Константи, масиви, MonoBehaviour, Awake і Start
+3. Модифікатори та базові поняття C# у проєкті
+
+**Актуальна версія:** 4 скрипти + карта в сцені `SampleScene`.
 
 ---
 
@@ -12,23 +15,34 @@
 
 **П: Зі скількох скриптів складається гра і за що кожен відповідає?**
 
-**В:** 11 файлів: `TDGameBootstrap` (запуск), `GameManager` (логіка), `GameConfig` (числа), `UIManager` (інтерфейс), `TowerInput` (миша), `Tower`, `Enemy`, `Projectile`, `LevelMap`, `BuildZone`, `ModelSpawner`.
+**В:** 4 файли в `Assets/Scripts/`:
 
-**П: Як гра запускається без ручного налаштування сцени?**
+| Файл | Роль |
+|------|------|
+| `GameConfig.cs` | Усі числа: ціни, HP, хвилі, шлях ворогів |
+| `BuildZone.cs` | Зелена клітинка на сцені для башні |
+| `Game.cs` | Логіка гри, башні, вороги, автозапуск |
+| `UIManager.cs` | Меню, HUD, екран кінця гри |
 
-**В:** У `TDGameBootstrap` метод з атрибутом `[RuntimeInitializeOnLoadMethod]` після завантаження сцени створює об'єкт `NightWatchGame` і додає `GameManager`, `UIManager`, `TowerInput`.
+**П: Як гра запускається без ручного налаштування?**
+
+**В:** У `Game.cs` клас `GameBootstrap` має атрибут `[RuntimeInitializeOnLoadMethod]`. Після завантаження сцени Unity створює об'єкт `NightWatch` з `Game` і `UIManager`, налаштовує камеру зверху (orthographic).
 
 **П: Де «мозок» гри?**
 
-**В:** `GameManager` — золото, хвилі, будівництво, HP кристала, спавн ворогів, перемога/поразка.
+**В:** Клас `Game` — золото, хвилі, таймер, кліки по карті, HP кристала, перемога/поразка.
 
-**П: Де зберігаються всі числа (урон, ціни, таймери)?**
+**П: Де зберігаються всі числа?**
 
-**В:** У `GameConfig.cs` — константи та методи розрахунку статів.
+**В:** У `GameConfig.cs` — константи, масив `Waves`, масив `EnemyPath`.
+
+**П: Де карта?**
+
+**В:** У сцені `SampleScene` — об'єкт `Level` (дорога, зони будівництва, кристал). Код **не генерує** карту в runtime, а знаходить `BuildZone` на сцені.
 
 **П: Що таке `namespace NightWatch`?**
 
-**В:** Спільний простір імен — усі класи гри в одному «пакеті», щоб не плуталися з чужим кодом.
+**В:** Спільний простір імен — усі класи гри в одному пакеті.
 
 ---
 
@@ -37,339 +51,196 @@
 **П: Чим відрізняються `Awake`, `Start`, `Update`?**
 
 **В:**
-- `Awake` — одразу при створенні об'єкта (singleton у GameManager)
-- `Start` — один раз перед першим кадром (меню, прогрів моделей)
-- `Update` — кожен кадр (таймер хвилі, HUD, атака башен)
+- `Awake` — одразу при створенні (`Game.I = this`, побудова UI в `UIManager`)
+- `Start` — один раз перед першим кадром (знайти `Level`, `BuildZone`, показати меню)
+- `Update` — кожен кадр (таймер хвилі, HUD, атака башен, рух ворогів)
 
 **П: Що таке `MonoBehaviour`?**
 
-**В:** Базовий клас Unity-скрипта; дає `Update`, `Start`, доступ до `transform`, `gameObject`.
+**В:** Базовий клас Unity-скрипта; дає `Update`, `Start`, `transform`, `gameObject`.
 
-**П: Що таке `GameObject` і `Transform`?**
+**П: Що таке `Game.I`?**
 
-**В:** `GameObject` — об'єкт у сцені; `Transform` — позиція, поворот, масштаб.
-
-**П: Навіщо `FindFirstObjectByType<UIManager>()`?**
-
-**В:** Знайти вже створений компонент у сцені без жорсткого посилання в Inspector.
+**В:** Singleton — один екземпляр `Game` на всю гру. У `Awake`: `I = this`. Інші класи звертаються через `Game.I`.
 
 ---
 
-## 3. Патерни і структура
+## 3. Ігровий процес
 
-**П: Що таке Singleton і де він використовується?**
+**П: Як гравець починає гру?**
 
-**В:** `GameManager.Instance` — один екземпляр на всю гру. У `Awake`: якщо другий — `Destroy`. Інші скрипти звертаються через `GameManager.Instance`.
-
-**П: Навіщо `static class GameConfig`?**
-
-**В:** Загальні налаштування без об'єкта в сцені — одне джерело балансу.
-
-**П: Що таке `enum` у вашому проєкті?**
-
-**В:** Списки варіантів: `RaceType`, `TowerType`, `EnemyType`, `Difficulty`, `WaveRewardType`.
-
-**П: Що таке `struct` (`TowerStats`, `EnemyStats`)?**
-
-**В:** Невеликий набір полів (HP, урон, швидкість) без окремого об'єкта в сцені.
-
----
-
-## 4. GameManager (часто питають)
-
-**П: Як гравець починає гру після меню?**
-
-**В:** `SelectRace()` — скидання золота/хвилі, `BuildLevel()` або `ResetLevelState()`, HP кристала, `ShowGameHud()`.
+**В:** Меню → кнопка «Ельфи» або «Гноми» → `StartWithRace()` → скидання золота/HP, показ HUD.
 
 **П: Як ставиться башня?**
 
-**В:** `TowerInput` → клік → `FindBuildZoneFromScreen` → `TryBuildAtZone` → `GameObject` + `Tower.Init()`.
+**В:**
+1. Натиснути «Лучник» або «Гармата» (`SelectTower`)
+2. Клікнути зелену клітинку
+3. `HandleClick` → `ZoneUnderMouse` → `Tower.Create`
+
+**П: Як працює таймер хвилі?**
+
+**В:** При старті хвилі `WaveTimeLeft = GameConfig.WaveSeconds(...)`. У `Update` час зменшується. Якщо `WaveTimeLeft <= 0` — **миттєва поразка** (`EndGame(false, "Час вийшов!")`). Overtime немає.
 
 **П: Коли хвиля вважається пройденою?**
 
-**В:** У `Update`: `WaveActive`, `_spawnDone == true`, `ActiveEnemies.Count == 0` → `OnWaveComplete()`.
+**В:** Коли `_waveSpawnDone == true` і `Enemies.Count == 0` → `FinishWave()` → бонусне золото. Після 5-ї хвилі — перемога.
 
 **П: Як запускається хвиля?**
 
-**В:** Кнопка «Почати хвилю» → `StartNextWave()` → `StartCoroutine(SpawnWave)`.
+**В:** Кнопка «Хвиля» → `StartNextWave()` → корутина `SpawnWave`.
 
-**П: Де зберігається HP кристала?**
+**П: Де HP кристала?**
 
-**В:** У `GameManager`: `CrystalHp`, `CrystalMaxHp`; урон через `DamageCrystal()`.
-
-**П: Що відбувається, коли час хвилі вийшов?**
-
-**В:** `WaveOvertime = true`, кристал отримує 2 HP/с, поки ворогів не знищать.
-
-**П: Коли показується нагорода після 4-ї хвилі?**
-
-**В:** У `OnWaveComplete`: якщо `CurrentWave == 4` і нагороду ще не брали → `OfferMilestoneReward()` → пауза вибору (`RewardChoicePending`).
+**В:** `Game.CrystalHp`. Ворог, що дійшов до кінця шляху, викликає `DamageCrystal()`.
 
 ---
 
-## 5. Корутини
-
-**П: Що таке корутина і навіщо вона?**
-
-**В:** Метод `IEnumerator` з `yield return WaitForSeconds` — спавн ворогів з паузами, не блокуючи гру.
-
-**П: Чому спавн не в `Update`?**
-
-**В:** Потрібні точні інтервали (1.15 с між ворогами, паузи міні-хвиль).
-
-**П: Що таке `yield return`?**
-
-**В:** «Зачекати N секунд і продовжити»; решта коду (башні, UI) працює далі.
-
----
-
-## 6. LevelMap і BFS
+## 4. Шлях ворогів
 
 **П: Як вороги знають, куди йти?**
 
-**В:** `LevelMap.BuildWorldWaypoints` будує масив `Vector3[]`; ворог у `Update` йде від точки до точки (`_wp`).
+**В:** Масив `GameConfig.EnemyPath` — список точок `Vector3`. Ворог у `Update` рухається `MoveTowards` від точки до точки (`_i` — індекс).
 
-**П: Як будується шлях на сітці?**
+**П: Чому не BFS?**
 
-**В:** BFS у `FindPath`: черга, сусіди по 4 напрямках, тільки клітинки дороги.
-
-**П: Що таке BFS простими словами?**
-
-**В:** Пошук у ширину — хвилями від старту до кристала по дорозі.
-
-**П: Де можна будувати башні?**
-
-**В:** `IsBuildable` — не дорога, не дерево, не кристал, не край карти.
+**В:** Шлях зафіксований у конфігу. Карта вже намальована в сцені, тому runtime-пошук шляху не потрібен — простіше для захисту.
 
 ---
 
-## 7. Tower, Enemy, Projectile
+## 5. Tower і Enemy
 
 **П: Як башня обирає ціль?**
 
-**В:** `FindBestTarget` — найближчий живий ворог у радіусі `Combat.Range`.
+**В:** У `Tower.Update` перебір `Game.I.Enemies` — найближчий живий ворог у радіусі `TowerRange`.
 
-**П: Чим відрізняються типи атак?**
+**П: Чи є снаряди?**
 
-**В:** Single — один ворог; Aoe — мортира; Slow — заморозка; Chain — блискавка (до 3 цілей).
+**В:** Ні. Урон **миттєвий** — `target.Hit(dmg)` без окремого класу `Projectile`.
 
-**П: Як рахується урон з урахуванням раси і рівня?**
+**П: Чим відрізняються башні?**
 
-**В:** `GameConfig.GetTowerCombat()` — база × раса × рівень × бонуси після 4-ї хвилі.
+**В:** Лучник — дешевший, ближній, швидкий. Гармата — дорожча, дальня, повільніша.
 
-**П: Що робить `Projectile`?**
+**П: Як працюють раси?**
 
-**В:** Летить до цілі; при попаданні — урон, AOE або slow.
-
-**П: Що особливого у боса?**
-
-**В:** 10-та хвиля, багато HP, періодично викликає Scout-міньонів.
+**В:** `GameConfig.ApplyRace`: ельфи +15% швидкість атаки, гноми +20% урон.
 
 ---
 
-## 8. UI (UIManager)
+## 6. UI
 
 **П: Чому UI створюється кодом?**
 
-**В:** Увесь інтерфейс збирається в `BuildUi()` — Canvas, панелі, кнопки.
+**В:** У `UIManager.Awake` → `BuildInterface()` — Canvas, кнопки, тексти без Inspector.
 
-**П: Як UI дізнається золото і HP?**
+**П: Як підсвічується вибрана башня?**
 
-**В:** `RefreshHud()` кожен кадр читає `GameManager.Instance`.
+**В:** `HighlightTower()` — зелена кнопка яскравіша, інша тьмяніша.
 
 **П: Як не будувати башню при кліку по кнопці?**
 
-**В:** `UiEventSetup.IsPointerOverUi()` — якщо курсор над Canvas, клік ігнорується.
+**В:** `OverUi()` — raycast по Canvas; якщо курсор над UI, `HandleClick` виходить.
 
 ---
 
-## 9. Механіки екзамену (RANDOM.ORG)
+## 7. Корутини
+
+**П: Що таке корутина?**
+
+**В:** Метод `IEnumerator` з `yield return WaitForSeconds` — спавн ворогів з паузами.
+
+**Приклад:**
+
+```csharp
+IEnumerator SpawnWave(int wave) {
+    ...
+    yield return new WaitForSeconds(GameConfig.SpawnInterval);
+}
+```
+
+---
+
+## 8. Механіки проєкту (коротко)
 
 | Механіка | Де в коді |
 |----------|-----------|
-| Стартовий вибір (складність + раса) | `BuildMenu`, `SelectRace`, `DifficultyConfig`, `RaceRate` |
-| Часові обмеження | `GetWaveTimeLimit`, `TickWaveTimer`, overtime |
-| Захист цілі | `CrystalHp`, `DamageCrystal`, шляхи `SpawnPaths` |
-| Нагорода після 4-ї хвилі | `WaveRewardConfig.PickRandomOffers`, `OfferMilestoneReward` |
-
-**П: Звідки випадковість у нагородах?**
-
-**В:** `PickRandomOffers()` — перемішування масиву, беруться 3 перші.
-
----
-
-## 10. Підступні питання
-
-- Без `EventSystem` — кнопки UI не клікаються.
-- Ворог не йде напряму — тільки по BFS-шляху по дорозі.
-- Продаж башні — 70% від `_totalSpent` (`SellRefundRate = 0.7f`).
-- Карта створюється в `BuildLevel()` при першому виборі раси.
+| Вибір раси | `UIManager` → `StartWithRace` |
+| 2 типи башен | `TowerType`, кнопки HUD |
+| 5 хвиль | `GameConfig.WaveCount`, масив `Waves` |
+| Таймер хвилі | `WaveTimeLeft`, поразка при 0 |
+| Захист кристала | `CrystalHp`, `DamageCrystal` |
+| Карта в сцені | `Level` + `BuildZone` на об'єктах |
 
 ---
 
 ## Відповідь на 30 секунд (шаблон)
 
-«Гра автозапускається через `TDGameBootstrap`. Логіка в `GameManager`: гравець обирає складність і расу, будує башні на `BuildZone`. Хвилі запускає корутина `SpawnWave`, вороги йдуть по шляху з `LevelMap.FindPath`. Башні стріляють через `Projectile`. HP кристала в `GameManager`; якщо час хвилі вийшов — overtime урон. Після 4-ї хвилі — випадковий вибір з 9 нагород у `WaveRewardConfig`. Усі числа — в `GameConfig`.»
+«Гра — tower defense «Нічний Дозор» на Unity. 4 скрипти: `GameConfig` — баланс, `BuildZone` — клітинки на сцені, `Game` — логіка + башні + вороги, `UIManager` — інтерфейс. Автозапуск через `GameBootstrap`. Гравець обирає расу, ставить лучника або гармату на зелені зони, запускає 5 хвиль. Вороги йдуть по `EnemyPath`. Башні б'ють найближчого ворога без снарядів. Якщо час хвилі вийшов або кристал знищено — поразка.»
 
 ---
 
 # Частина 2. Константи, масиви та MonoBehaviour
 
-## 1. Константи (`const`)
-
-**Константа** — число або текст, задане один раз і **не змінюється** під час гри.
-
-Приклад з `GameConfig.cs`:
+## Константи (`const`)
 
 ```csharp
-public const int StartingGold = 120;
-public const int WavesPerLevel = 10;
-public const float SellRefundRate = 0.7f;
+public const int StartGold = 120;
+public const int WaveCount = 5;
 ```
 
-| Частина | Що означає |
-|---------|------------|
-| `const` | Це константа, не змінювати |
-| `int` | Ціле число |
-| `float` | Дробове число (0.7) |
-| `StartingGold` | Ім'я — підпис до числа |
+Число задається один раз у `GameConfig` і не змінюється під час гри. Золото гравця — окреме поле `Game.Gold`, яке змінюється.
 
-**Навіщо:** усі числа балансу в одному місці. Змінив `120` — змінився старт у всій грі.
-
-**Константа vs змінна:**
+## Масиви
 
 ```csharp
-public const int StartingGold = 120;  // не змінюється
-public int Gold = 120;                // змінюється: Gold -= 50
+public static readonly string[] TowerNames = { "Лучник", "Гармата" };
+public static readonly Vector3[] EnemyPath = { ... };
+public static readonly (int scout, int fighter, int tank)[] Waves = { ... };
 ```
 
-**У грі:** `SelectRace()` → `Gold = GameConfig.StartingGold` → завжди 120 на старті.
+- `TowerNames[0]` → «Лучник»
+- `Waves[2]` → хвиля 3: 2 скаути, 2 бійці, 1 танк
+- `EnemyPath` — точки маршруту ворога
 
----
+## MonoBehaviour у проєкті
 
-## 2. Масиви (`[]`)
+| Клас | MonoBehaviour? |
+|------|----------------|
+| `Game`, `Tower`, `Enemy`, `BuildZone`, `UIManager` | Так |
+| `GameConfig`, `Shape`, `GameBootstrap` | Ні (static) |
 
-**Масив** — список значень одного типу з номерами 0, 1, 2…
-
-```csharp
-public static readonly string[] TowerNames =
-{
-    "Лучник", "Гармата", "Мортира", "Крижана", "Блискавка", "Снайпер"
-};
-
-public static readonly float[] RaceRate = { 1.15f, 1f, 1f };
-```
-
-| Індекс | TowerNames | RaceRate (раса) |
-|--------|------------|-----------------|
-| 0 | Лучник | 1.15 — ельфи (+15% швидкість) |
-| 1 | Гармата | 1.0 — гноми |
-| 2 | … | … |
-
-**Звернення:**
+## Awake / Start / Update у грі
 
 ```csharp
-GameConfig.TowerNames[0]                    // "Лучник"
-GameConfig.TowerNames[(int)TowerType.Cannon] // "Гармата"
-GameConfig.RaceRate[(int)RaceType.Elves]     // 1.15f
-```
+// Game.cs
+void Awake() => I = this;
+void Start() { знайти Level, BuildZones, показати меню; }
+void Update() { таймер, кліки, HUD; }
 
-**enum + масив:** `TowerType.Archer` = 0, `Cannon` = 1… Тому `(int)type` — номер у масиві.
+// Tower.cs
+void Update() { знайти ворога, завдати урон; }
 
-**У грі:** кнопка показує `TowerNames[i]`; ельфи отримують множник `RaceRate[0]` на швидкість атаки.
-
-**Масив vs багато змінних:**
-
-```csharp
-// незручно:
-string name1 = "Лучник";
-string name2 = "Гармата";
-
-// зручно:
-string[] TowerNames = { "Лучник", "Гармата", ... };
-for (int i = 0; i < 6; i++)
-    CreateButton(TowerNames[i]);
+// Enemy.cs
+void Update() { рух по EnemyPath; }
 ```
 
 ---
 
-## 3. MonoBehaviour
-
-**MonoBehaviour** — базовий клас Unity для скриптів на об'єктах у сцені.
-
-```csharp
-public class GameManager : MonoBehaviour
-public class Tower : MonoBehaviour
-public class Enemy : MonoBehaviour
-```
-
-**Без MonoBehaviour** — звичайний C#-клас, Unity сам не викликає:
-
-```csharp
-public static class GameConfig { ... }
-public static class LevelMap { ... }
-```
-
-### Що дає MonoBehaviour
-
-| Метод | Коли | У проєкті |
-|-------|------|-----------|
-| `Awake()` | Об'єкт створено | `Instance = this` |
-| `Start()` | Перед 1-м кадром | Меню, камера |
-| `Update()` | Кожен кадр | Таймер, стрільба, рух ворогів |
-
-**Доступ до Unity:** `transform`, `gameObject`, `Destroy()`, `AddComponent()`, `StartCoroutine()`.
-
-### Приклад
-
-```csharp
-// GameManager — MonoBehaviour
-void Update() {
-    if (WaveActive) TickWaveTimer();
-}
-
-// GameConfig — НЕ MonoBehaviour
-public static int KillGold(...) { ... }
-```
-
-**Аналогія:**
-- **MonoBehaviour** — «живий» об'єкт у грі (башня, ворог, менеджер).
-- **static class** — «довідник» з правилами і числами.
-
----
-
-## Все разом
-
-```csharp
-// GameConfig — НЕ MonoBehaviour
-public const int StartingGold = 120;
-public static readonly string[] RaceNames =
-    { "Ельфи", "Гноми", "Орки" };
-
-// GameManager — MonoBehaviour
-public class GameManager : MonoBehaviour
-{
-    public int Gold = GameConfig.StartingGold;
-
-    void Start() { _ui?.ShowMainMenu(); }
-
-    public void SelectRace(RaceType race) {
-        Gold = GameConfig.StartingGold;
-        _ui?.SetMessage(GameConfig.RaceNames[(int)race]);
-    }
-}
-```
-
----
-
-## Шпаргалка
+# Частина 3. Модифікатори — шпаргалка
 
 | Термін | Одна фраза |
 |--------|------------|
-| **Константа** | Фіксоване значення в GameConfig, не змінюється в грі |
-| **Масив** | Список значень з індексами 0, 1, 2… |
-| **MonoBehaviour** | Скрипт на об'єкті з Start/Update і доступом до сцени |
+| **public** | Видно всім класам |
+| **private / _поле** | Тільки всередині класу |
+| **static** | Належить класу, не об'єкту |
+| **const** | Число-правило, не змінюється |
+| **readonly** | Задано один раз (масиви імен) |
+| **enum** | Список варіантів: `TowerType`, `Race` |
+| **List<T>** | Динамічний список ворогів |
+| **IEnumerator** | Корутина з паузами |
+| **Game.I** | Єдиний менеджер гри |
 
 ---
 
-*Проєкт: «Нічний Дозор» — Tower Defense, Unity, namespace NightWatch.*
+*Проєкт: «Нічний Дозор» — Tower Defense, Unity, namespace NightWatch, GitHub: Ekzamen_Bozhko.*
