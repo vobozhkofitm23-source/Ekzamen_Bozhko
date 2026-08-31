@@ -18,7 +18,7 @@ Tower defense для захисту курсової / екзамену. Про�
 |------|------|
 | `GameConfig.cs` | Баланс, шлях ворогів, склад хвиль |
 | `BuildZone.cs` | Зелені клітинки на сцені |
-| `Game.cs` | Логіка, башні, вороги, автозапуск |
+| `Game.cs` | Логіка, башні, вороги |
 | `UIManager.cs` | Меню, HUD, екран кінця гри |
 
 ## Керування
@@ -40,16 +40,9 @@ Tower defense для захисту курсової / екзамену. Про�
 
 ## Документація для захисту
 
-- `PresentationAssets/Presentation_Nichniy_Dozor.pptx` — **презентація для захисту** (PowerPoint)
-- `PresentationAssets/exam_prep_code_qa.md` / `.pdf` — питання та відповіді
-- `PresentationAssets/code_walkthrough_full.md` / `.pdf` — короткий розбір по файлах
-- `PresentationAssets/full_code_guide.md` / `.pdf` — повний гайд (тільки локально)
-
-Презентацію згенерувати знову:
-
-```bash
-py create_presentation.py
-```
+- `PresentationAssets/Presentation_Nichniy_Dozor.pptx` — презентація
+- `PresentationAssets/exam_prep_code_qa.pdf` — питання та відповіді
+- `PresentationAssets/code_walkthrough_full.pdf` — розбір коду по файлах
 
 ## Структура проєкту
 
@@ -58,7 +51,6 @@ Assets/Scripts/          — 4 скрипти гри
 Assets/Scenes/           — SampleScene (карта + NightWatch)
 Assets/Resources/Models/ — моделі карти (tile, дорога, кристал)
 PresentationAssets/      — презентація та PDF для захисту
-create_presentation.py   — генератор PowerPoint
 ```
 
 ## Ассети (тільки потрібні)

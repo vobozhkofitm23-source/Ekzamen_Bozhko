@@ -40,6 +40,8 @@ docs/
 Presentation_Nichniy_Dozor.pptx
 PresentationAssets/full_code_guide.md
 PresentationAssets/full_code_guide.pdf
+*.py
+ekz.slnx
 *.blend1
 *.blend1.meta
 ~$*
