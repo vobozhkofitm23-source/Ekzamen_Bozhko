@@ -51,6 +51,21 @@ Tower defense для захисту курсової / екзамену. Про�
 py create_presentation.py
 ```
 
-## Ассети
+## Структура проєкту
 
-Kenney Tower Defense Kit (CC0) — `Assets/Resources/Models/`
+```
+Assets/Scripts/          — 4 скрипти гри
+Assets/Scenes/           — SampleScene (карта + NightWatch)
+Assets/Resources/Models/ — моделі карти (tile, дорога, кристал)
+PresentationAssets/      — презентація та PDF для захисту
+create_presentation.py   — генератор PowerPoint
+```
+
+## Ассети (тільки потрібні)
+
+Kenney Tower Defense Kit (CC0) — `Assets/Resources/Models/`:
+- `tile.fbx` — трава
+- `tile-dirt.fbx` — дорога
+- `spawn-round.fbx` — спавн
+- `snow-detail-crystal-large.fbx` — кристал
+- `Textures/variation-a.png` — зелені зони будівництва

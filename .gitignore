@@ -35,6 +35,9 @@ ExportedObj/
 .vs/
 Assets/_Recovery/
 Assets/_Recovery.meta
+game/
+docs/
+Presentation_Nichniy_Dozor.pptx
 PresentationAssets/full_code_guide.md
 PresentationAssets/full_code_guide.pdf
 *.blend1
