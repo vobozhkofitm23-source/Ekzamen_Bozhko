@@ -34,6 +34,7 @@ ExportedObj/
 .idea/
 .vs/
 Assets/_Recovery/
+Assets/_Recovery.meta
 PresentationAssets/full_code_guide.md
 PresentationAssets/full_code_guide.pdf
 *.blend1
