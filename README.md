@@ -40,14 +40,15 @@ Tower defense для захисту курсової / екзамену. Про�
 
 ## Документація для захисту
 
-- `PresentationAssets/full_code_guide.md` / `.pdf` — **повний гайд по коду** (читати з цього)
+- `PresentationAssets/Presentation_Nichniy_Dozor.pptx` — **презентація для захисту** (PowerPoint)
 - `PresentationAssets/exam_prep_code_qa.md` / `.pdf` — питання та відповіді
 - `PresentationAssets/code_walkthrough_full.md` / `.pdf` — короткий розбір по файлах
+- `PresentationAssets/full_code_guide.md` / `.pdf` — повний гайд (тільки локально)
 
-PDF згенерувати:
+Презентацію згенерувати знову:
 
 ```bash
-py PresentationAssets/generate_exam_pdf.py --all
+py create_presentation.py
 ```
 
 ## Ассети

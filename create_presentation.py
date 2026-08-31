@@ -1,4 +1,4 @@
-"""Generate PowerPoint presentation for Нічний Дозор — centered layout."""
+"""Generate PowerPoint presentation for Нічний Дозор (current 4-script version)."""
 import os
 from pptx import Presentation
 from pptx.util import Inches, Pt
@@ -6,8 +6,9 @@ from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
 
-OUT = r"c:\ekz\Presentation_Nichniy_Dozor.pptx"
-ASSETS = r"c:\ekz\PresentationAssets"
+ROOT = os.path.dirname(os.path.abspath(__file__))
+OUT = os.path.join(ROOT, "PresentationAssets", "Presentation_Nichniy_Dozor.pptx")
+ASSETS = os.path.join(ROOT, "PresentationAssets")
 SLIDE_W = 13.333
 SLIDE_H = 7.5
 
@@ -19,22 +20,10 @@ GREEN = RGBColor(0x45, 0xC4, 0x70)
 TEXT = RGBColor(0xEA, 0xF0, 0xFA)
 DIM = RGBColor(0x8A, 0x98, 0xB0)
 
-RANDOM_ROWS = [
-    ("Ряд 1", [
-        ("random_row1_10.png", "10", "Контроль території", False),
-        ("random_row1_15.png", "15", "Управління простором", False),
-        ("random_row1_21.png", "21", "Стартовий вибір", True),
-    ]),
-    ("Ряд 2", [
-        ("random_row2_27.png", "27", "Часові обмеження", True),
-        ("random_row2_04.png", "4", "Менеджмент армії", False),
-        ("random_row2_13.png", "13", "Дослідження світу", False),
-    ]),
-    ("Ряд 3", [
-        ("random_row3_05.png", "5", "Накопичення ресурсів", False),
-        ("random_row3_11.png", "11", "Захист цілі", True),
-        ("random_row3_12.png", "12", "Скритність", False),
-    ]),
+CHOSEN_MECHANICS = [
+    ("21", "Стартовий вибір", "2 раси: Ельфи (+15% швидкість) / Гноми (+20% урон)"),
+    ("27", "Часові обмеження", "Таймер на кожну хвилю — час вийшов = поразка"),
+    ("11", "Захист цілі", "Кристал 100 HP — вороги йдуть по шляху до нього"),
 ]
 
 
@@ -42,6 +31,12 @@ def bg(slide):
     f = slide.background.fill
     f.solid()
     f.fore_color.rgb = BG
+
+
+def blank(prs):
+    s = prs.slides.add_slide(prs.slide_layouts[6])
+    bg(s)
+    return s
 
 
 def center_card(slide, w, h, y=None):
@@ -53,19 +48,18 @@ def center_card(slide, w, h, y=None):
     sh.fill.fore_color.rgb = CARD
     sh.line.color.rgb = ACCENT
     sh.line.width = Pt(1.5)
-    return sh
 
 
-def center_title(slide, title, subtitle=None, y=0.55):
-    tb = slide.shapes.add_textbox(Inches(0.8), Inches(y), Inches(SLIDE_W - 1.6), Inches(0.9))
+def title(slide, text, subtitle=None, y=0.42):
+    tb = slide.shapes.add_textbox(Inches(0.7), Inches(y), Inches(SLIDE_W - 1.4), Inches(0.85))
     p = tb.text_frame.paragraphs[0]
-    p.text = title
-    p.font.size = Pt(36)
+    p.text = text
+    p.font.size = Pt(34)
     p.font.bold = True
     p.font.color.rgb = ACCENT
     p.alignment = PP_ALIGN.CENTER
     if subtitle:
-        sb = slide.shapes.add_textbox(Inches(1.2), Inches(y + 0.65), Inches(SLIDE_W - 2.4), Inches(0.5))
+        sb = slide.shapes.add_textbox(Inches(1.0), Inches(y + 0.62), Inches(SLIDE_W - 2.0), Inches(0.45))
         sp = sb.text_frame.paragraphs[0]
         sp.text = subtitle
         sp.font.size = Pt(16)
@@ -73,266 +67,223 @@ def center_title(slide, title, subtitle=None, y=0.55):
         sp.alignment = PP_ALIGN.CENTER
 
 
-def center_bullets(slide, items, top=2.0, width=9.5, size=20):
+def bullets(slide, items, top=1.45, width=10.5, size=19, center=True):
     x = (SLIDE_W - width) / 2
-    tb = slide.shapes.add_textbox(Inches(x), Inches(top), Inches(width), Inches(SLIDE_H - top - 0.6))
+    tb = slide.shapes.add_textbox(Inches(x), Inches(top), Inches(width), Inches(SLIDE_H - top - 0.5))
     tf = tb.text_frame
     tf.word_wrap = True
-    tf.vertical_anchor = MSO_ANCHOR.TOP
     for i, line in enumerate(items):
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         p.text = line
         p.font.size = Pt(size)
-        p.font.color.rgb = TEXT
-        p.alignment = PP_ALIGN.CENTER
-        p.space_after = Pt(10)
+        p.font.color.rgb = TEXT if line else DIM
+        p.alignment = PP_ALIGN.CENTER if center else PP_ALIGN.LEFT
+        p.space_after = Pt(8)
 
 
 def slide_title(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_card(s, 9.5, 4.2, 1.65)
-
-    tb = s.shapes.add_textbox(Inches(2.2), Inches(2.5), Inches(9), Inches(2.8))
+    s = blank(prs)
+    center_card(s, 9.8, 4.0, 1.75)
+    tb = s.shapes.add_textbox(Inches(2.0), Inches(2.55), Inches(9.3), Inches(2.5))
     tf = tb.text_frame
     p = tf.paragraphs[0]
     p.text = "НІЧНИЙ ДОЗОР"
-    p.font.size = Pt(52)
+    p.font.size = Pt(50)
     p.font.bold = True
     p.font.color.rgb = ACCENT
     p.alignment = PP_ALIGN.CENTER
-
     p2 = tf.add_paragraph()
     p2.text = "Tower Defense · Unity · URP"
     p2.font.size = Pt(22)
     p2.font.color.rgb = GOLD
     p2.alignment = PP_ALIGN.CENTER
-    p2.space_before = Pt(12)
-
+    p2.space_before = Pt(10)
     p3 = tf.add_paragraph()
-    p3.text = "Ніч + дозор біля кристалу — ти тримаєш оборону до ранку"
+    p3.text = "Захист кристала вночі — 5 хвиль, 2 башні, 2 раси"
     p3.font.size = Pt(17)
     p3.font.color.rgb = DIM
     p3.alignment = PP_ALIGN.CENTER
-    p3.space_before = Pt(20)
-
-
-def add_centered_picture(slide, path, y, width):
-    if not os.path.exists(path):
-        return
-    left = Inches((SLIDE_W - width) / 2)
-    slide.shapes.add_picture(path, left, Inches(y), width=Inches(width))
+    p3.space_before = Pt(16)
 
 
 def slide_random(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "1. Механіки з RANDOM.ORG", "3 ряди × 3 числа · обрано по 1 з кожного", y=0.32)
-
-    cw, ch = 1.22, 0.98
-    gap_x, gap_y = 0.14, 0.18
-    grid_w = cw * 3 + gap_x * 2
-    grid_h = ch * 3 + gap_y * 2
-    sx = (SLIDE_W - grid_w) / 2
-    sy = 1.28
-
-    for ri, (rname, cells) in enumerate(RANDOM_ROWS):
-        for ci, (fn, num, mech, chosen) in enumerate(cells):
-            x = sx + ci * (cw + gap_x)
-            y = sy + ri * (ch + gap_y)
-            path = os.path.join(ASSETS, fn)
-            if os.path.exists(path):
-                s.shapes.add_picture(path, Inches(x), Inches(y), width=Inches(cw))
-            if chosen:
-                fr = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x - 0.03), Inches(y - 0.03),
-                                        Inches(cw + 0.06), Inches(ch + 0.06))
-                fr.fill.background()
-                fr.line.color.rgb = GREEN
-                fr.line.width = Pt(3)
-            cap = s.shapes.add_textbox(Inches(x), Inches(y + ch + 0.02), Inches(cw), Inches(0.38))
-            cp = cap.text_frame.paragraphs[0]
-            cp.text = f"{'✓ ' if chosen else ''}№{num}"
-            cp.font.size = Pt(9)
-            cp.font.bold = chosen
-            cp.font.color.rgb = GREEN if chosen else DIM
-            cp.alignment = PP_ALIGN.CENTER
-
-    card_w, card_h = 8.2, 2.25
-    card_y = sy + grid_h + 0.55
-    center_card(s, card_w, card_h, card_y)
-
-    tb = s.shapes.add_textbox(
-        Inches((SLIDE_W - card_w + 0.4) / 2), Inches(card_y + 0.22),
-        Inches(card_w - 0.4), Inches(card_h - 0.35))
-    tf = tb.text_frame
-    lines = [
-        ("Обрані механіки", True, GOLD, 20),
-        ("", False, TEXT, 6),
-        ("21 — Стартовий вибір  ·  27 — Часові обмеження  ·  11 — Захист цілі", True, GREEN, 16),
-        ("", False, TEXT, 8),
-        ("+ нагорода після 4-ї хвилі (3 випадкових бонуси з 9)", False, DIM, 14),
-    ]
-    for i, (t, b, c, sz) in enumerate(lines):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.text = t
-        p.font.bold = b
-        p.font.size = Pt(sz)
-        p.font.color.rgb = c
-        p.alignment = PP_ALIGN.CENTER
-
-
-def slide_mechanics(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "2. Реалізація в грі", y=0.4)
-    center_card(s, 10.5, 5.2, 1.15)
-    center_bullets(s, [
-        "21 · Стартовий вибір — складність + 3 раси",
-        "27 · Таймер хвилі, overtime шкодить кристалу",
-        "11 · Захист кристалу — центральна механіка",
-        "",
-        "Нагорода після 4-ї хвилі:",
-        "3 випадкових бонуси з пулу 9 (золото, лучники, HP…)",
-        "",
-        "6 башен · 10 хвиль · апгрейд · 3 складності · режим АД",
-    ], top=1.55, size=18)
-
-
-def slide_why(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "3. Чому обрано ці механіки?", y=0.45)
-    center_card(s, 10, 4.8, 1.35)
-    center_bullets(s, [
-        "Стартовий вибір + захист цілі — класика TD",
-        "Таймер додає напругу без надмірної складності",
-        "Нагорода на 4-й хвилі — roguelike-елемент середини гри",
-        "Простий, але завершений прототип",
-    ], top=1.7, size=20)
-
-
-def slide_inspiration(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "4. Надихнення", y=0.45)
-    center_card(s, 9.5, 4.5, 1.45)
-    center_bullets(s, [
-        "Kingdom Rush, Bloons TD",
-        "Fantasy: ельфи, гноми, орки, кристал",
-        "Kenney low-poly · нічна атмосфера",
-        "Roguelike-нагороди на milestone-хвилях",
-    ], top=1.75, size=20)
-
-
-def slide_setting(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "5. Сетинг", "Світ «Нічного Дозору»", y=0.4)
-    center_card(s, 10.5, 5.0, 1.2)
-    center_bullets(s, [
-        "Ніч — орди ворогів з трьох порталів",
-        "Кристал — те, що треба захистити",
-        "«Дозор» — ти чергуєш біля кристалу всю ніч",
-        "3 фракції захисників з унікальними бонусами",
-        "Після 4-ї хвилі — особлива нагорода дозору",
-    ], top=1.55, size=18)
-
-
-def slide_rewards(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "Нагорода за 4-у хвилю", "9 бонусів у базі · 3 випадкових на вибір", y=0.35)
-    center_card(s, 11.5, 5.5, 1.05)
-
-    rewards = [
-        "Золотий приплив — +200g",
-        "Багате полювання — +30% золота за kill",
-        "Податок переможців — +40g за хвилю",
-        "Швидкі лучники — +15% атака",
-        "Важка артилерія — +20% урон гармати/мортири",
-        "Крижана буря — slow +0.8с",
-        "Розширений дальнобій — +10% range",
-        "Майстер апгрейду — −25% ціна",
-        "Міцний кристал — +30 HP",
-    ]
-    col1 = rewards[:5]
-    col2 = rewards[5:]
-    for col, ox in [(col1, 1.8), (col2, 7.2)]:
-        tb = s.shapes.add_textbox(Inches(ox), Inches(1.5), Inches(4.8), Inches(4.8))
+    s = blank(prs)
+    title(s, "1. Механіки з RANDOM.ORG", "Обрано по 1 механіці з кожного ряду")
+    center_card(s, 11.0, 5.3, 1.05)
+    y = 1.55
+    for num, name, desc in CHOSEN_MECHANICS:
+        tb = s.shapes.add_textbox(Inches(1.8), Inches(y), Inches(9.8), Inches(1.1))
         tf = tb.text_frame
-        for i, line in enumerate(col):
-            p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-            p.text = "• " + line
-            p.font.size = Pt(16)
-            p.font.color.rgb = TEXT
-            p.space_after = Pt(6)
+        p = tf.paragraphs[0]
+        p.text = f"№{num} · {name}"
+        p.font.size = Pt(22)
+        p.font.bold = True
+        p.font.color.rgb = GREEN
+        p.alignment = PP_ALIGN.CENTER
+        p2 = tf.add_paragraph()
+        p2.text = desc
+        p2.font.size = Pt(16)
+        p2.font.color.rgb = TEXT
+        p2.alignment = PP_ALIGN.CENTER
+        p2.space_before = Pt(4)
+        y += 1.55
 
 
-def slide_style(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "6. Стиль гри", y=0.45)
-    center_card(s, 10, 4.6, 1.45)
-    center_bullets(s, [
-        "Low-poly 3D · URP · темна нічна палітра",
-        "Кольорове кодування башен і UI",
-        "Центровані модальні панелі (нагорода, меню)",
-        "Ефекти: снаряди, заморозка, зірки апгрейду",
-    ], top=1.75, size=20)
+def slide_game_overview(prs):
+    s = blank(prs)
+    title(s, "2. Що в грі зараз")
+    center_card(s, 10.8, 5.2, 1.15)
+    bullets(s, [
+        "2 раси · 2 типи башен · 3 типи ворогів",
+        "5 хвиль з таймером на кожну",
+        "Стартове золото: 120 · Кристал: 100 HP",
+        "Лучник (50) — ближній, швидкий  |  Гармата (90) — дальня",
+        "Карта збережена в сцені SampleScene",
+        "Код спрощено до 4 скриптів",
+    ], top=1.55, size=18)
 
 
-def slide_screenshot_menu(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "7. Головне меню", "Складність · раса · старт гри", y=0.4)
-    add_centered_picture(s, os.path.join(ASSETS, "screenshot_menu.png"), 1.15, 9.2)
-    center_bullets(s, [
-        "3 рівні складності (Легко / Середнє / АД)",
-        "3 раси з унікальними бонусами",
-    ], top=6.35, width=10, size=16)
+def slide_architecture(prs):
+    s = blank(prs)
+    title(s, "3. Архітектура коду", "Assets/Scripts/")
+    center_card(s, 11.2, 5.4, 1.0)
 
+    rows = [
+        ("GameConfig.cs", "Баланс, хвилі, шлях ворогів"),
+        ("BuildZone.cs", "Зелена клітинка на сцені"),
+        ("Game.cs", "Логіка + Tower + Enemy"),
+        ("UIManager.cs", "Меню, HUD, кнопки"),
+    ]
+    y = 1.45
+    for file, role in rows:
+        tb = s.shapes.add_textbox(Inches(1.6), Inches(y), Inches(10.2), Inches(0.75))
+        tf = tb.text_frame
+        p = tf.paragraphs[0]
+        p.text = file
+        p.font.size = Pt(20)
+        p.font.bold = True
+        p.font.color.rgb = GOLD
+        p.alignment = PP_ALIGN.CENTER
+        p2 = tf.add_paragraph()
+        p2.text = role
+        p2.font.size = Pt(16)
+        p2.font.color.rgb = TEXT
+        p2.alignment = PP_ALIGN.CENTER
+        y += 1.15
 
-def slide_screenshot_gameplay(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "8. Геймплей", "Будівництво башен · захист кристалу", y=0.38)
-    add_centered_picture(s, os.path.join(ASSETS, "screenshot_gameplay.png"), 1.05, 10.8)
-    center_bullets(s, [
-        "6 типів башен · HP-кристал · таймер хвилі · золото",
-        "Після 4-ї хвилі — вибір 1 бонусу з 3",
-    ], top=6.55, width=11, size=16)
-
-
-def slide_gameplay(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "9. Ігровий процес", y=0.45)
-    center_card(s, 10.5, 5.0, 1.2)
-    center_bullets(s, [
-        "Обрати складність і расу → будувати башні",
-        "Відбити 4 хвилі → обрати 1 бонус з 3",
-        "Апгрейд / продаж / (АД) ремонт",
-        "10 хвиль, таймер, бос, перемога/поразка",
-    ], top=1.55, size=19)
-
-
-def slide_video(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
-    center_title(s, "10. Відео геймплею", y=0.5)
-    center_card(s, 10, 4.5, 1.5)
-    tb = s.shapes.add_textbox(Inches(2.5), Inches(3.2), Inches(8.5), Inches(1.2))
+    tb = s.shapes.add_textbox(Inches(1.5), Inches(6.35), Inches(10.3), Inches(0.5))
     p = tb.text_frame.paragraphs[0]
-    p.text = "▶  ВСТАВТЕ ВІДЕО ТУТ"
-    p.font.size = Pt(30)
-    p.font.bold = True
+    p.text = "Сцена: Level (карта) + NightWatch (Game, UIManager) + Main Camera"
+    p.font.size = Pt(14)
     p.font.color.rgb = DIM
     p.alignment = PP_ALIGN.CENTER
 
 
+def slide_flow(prs):
+    s = blank(prs)
+    title(s, "4. Потік гри")
+    center_card(s, 10.5, 5.3, 1.05)
+    bullets(s, [
+        "Play → меню: обрати расу",
+        "HUD → обрати башню (Лучник / Гармата)",
+        "Клік по зеленій клітинці → побудова",
+        "Кнопка «Хвиля» → спавн ворогів + таймер",
+        "Башні б'ють найближчого ворога (без снарядів)",
+        "Усі вороги мертві до кінця часу → наступна хвиля",
+        "5 хвиль → перемога  |  час або кристал → поразка",
+    ], top=1.45, size=17)
+
+
+def slide_game_class(prs):
+    s = blank(prs)
+    title(s, "5. Клас Game — «мозок» гри")
+    center_card(s, 11.0, 5.3, 1.05)
+    bullets(s, [
+        "Game.I — singleton (один менеджер на гру)",
+        "Start: знайти Level, зібрати BuildZone, показати меню",
+        "Update: таймер хвилі, HUD, кліки по карті",
+        "StartWithRace / SelectTower / StartNextWave",
+        "SpawnWave — корутина з паузою між ворогами",
+        "Tower.Create — миттєвий урон  |  Enemy — рух по EnemyPath",
+    ], top=1.5, size=17)
+
+
+def slide_config(prs):
+    s = blank(prs)
+    title(s, "6. GameConfig.cs")
+    center_card(s, 10.8, 5.2, 1.15)
+    bullets(s, [
+        "static class — усі числа в одному місці",
+        "Масив Waves: скільки ворогів на кожну хвилю",
+        "Масив EnemyPath: точки маршруту",
+        "TowerCost, TowerRange, TowerDamage, TowerFireRate",
+        "ApplyRace: ельфи швидше, гноми сильніше",
+        "WaveSeconds: 45 + wave×5 секунд",
+    ], top=1.55, size=17)
+
+
+def slide_ui(prs):
+    s = blank(prs)
+    title(s, "7. UIManager.cs")
+    center_card(s, 10.5, 5.0, 1.2)
+    bullets(s, [
+        "UI створюється в коді (Canvas, кнопки, тексти)",
+        "3 екрани: меню · HUD · кінець гри",
+        "Ціна башен над кнопками (50 / 90 зол.)",
+        "Підсвітка обраної башні зеленим",
+        "RefreshHud — золото, HP, таймер, хвиля",
+    ], top=1.6, size=18)
+
+
+def slide_controls(prs):
+    s = blank(prs)
+    title(s, "8. Керування")
+    center_card(s, 9.5, 4.5, 1.45)
+    bullets(s, [
+        "Ельфи / Гноми — вибір раси",
+        "Лучник / Гармата — тип башні",
+        "Клік по зеленій зоні — побудова",
+        "Хвиля — старт наступної хвилі",
+        "Знову — рестарт після перемоги/поразки",
+    ], top=1.75, size=20)
+
+
+def slide_exam(prs):
+    s = blank(prs)
+    title(s, "9. Питання на захисті", "Короткі відповіді")
+    center_card(s, 11.2, 5.4, 1.0)
+    bullets(s, [
+        "Скільки скриптів? — 4 (GameConfig, BuildZone, Game, UIManager)",
+        "Де карта? — об'єкт Level на сцені",
+        "Як вороги йдуть? — по масиву EnemyPath",
+        "Що таке корутина? — SpawnWave з yield return WaitForSeconds",
+        "Коли поразка? — час вийшов або кристал знищено",
+        "Документація: PresentationAssets/exam_prep_code_qa.pdf",
+    ], top=1.4, size=16)
+
+
+def slide_demo(prs):
+    s = blank(prs)
+    title(s, "10. Демонстрація")
+    center_card(s, 10, 4.5, 1.5)
+    tb = s.shapes.add_textbox(Inches(2.2), Inches(3.0), Inches(9), Inches(1.5))
+    tf = tb.text_frame
+    p = tf.paragraphs[0]
+    p.text = "▶  LIVE DEMO / ВІДЕО"
+    p.font.size = Pt(32)
+    p.font.bold = True
+    p.font.color.rgb = GOLD
+    p.alignment = PP_ALIGN.CENTER
+    p2 = tf.add_paragraph()
+    p2.text = "Unity → SampleScene → Play"
+    p2.font.size = Pt(18)
+    p2.font.color.rgb = DIM
+    p2.alignment = PP_ALIGN.CENTER
+    p2.space_before = Pt(12)
+
+
 def slide_thanks(prs):
-    s = prs.slides.add_slide(prs.slide_layouts[6])
-    bg(s)
+    s = blank(prs)
     center_card(s, 8, 2.5, 2.5)
     tb = s.shapes.add_textbox(Inches(2.8), Inches(2.9), Inches(7.8), Inches(1.8))
     tf = tb.text_frame
@@ -343,8 +294,8 @@ def slide_thanks(prs):
     p.font.color.rgb = ACCENT
     p.alignment = PP_ALIGN.CENTER
     p2 = tf.add_paragraph()
-    p2.text = "Нічний Дозор"
-    p2.font.size = Pt(20)
+    p2.text = "Нічний Дозор · GitHub: Ekzamen_Bozhko"
+    p2.font.size = Pt(18)
     p2.font.color.rgb = DIM
     p2.alignment = PP_ALIGN.CENTER
 
@@ -356,25 +307,25 @@ def main():
 
     slide_title(prs)
     slide_random(prs)
-    slide_mechanics(prs)
-    slide_why(prs)
-    slide_inspiration(prs)
-    slide_setting(prs)
-    slide_rewards(prs)
-    slide_style(prs)
-    slide_screenshot_menu(prs)
-    slide_screenshot_gameplay(prs)
-    slide_gameplay(prs)
-    slide_video(prs)
+    slide_game_overview(prs)
+    slide_architecture(prs)
+    slide_flow(prs)
+    slide_game_class(prs)
+    slide_config(prs)
+    slide_ui(prs)
+    slide_controls(prs)
+    slide_exam(prs)
+    slide_demo(prs)
     slide_thanks(prs)
 
+    os.makedirs(os.path.dirname(OUT), exist_ok=True)
     try:
         prs.save(OUT)
         print(f"Saved: {OUT}")
     except PermissionError:
-        alt = OUT.replace(".pptx", "_v2.pptx")
+        alt = OUT.replace(".pptx", "_new.pptx")
         prs.save(alt)
-        print(f"Original locked — saved: {alt}")
+        print(f"File locked — saved: {alt}")
 
 
 if __name__ == "__main__":
